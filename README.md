@@ -67,9 +67,6 @@ export WECHAT_WEBHOOK_KEY="your-wechat-webhook-key"
 ```bash
 # 使用 uv 运行
 uv run python refresh_code.py
-
-# 或使用快捷命令
-uv run live-refresh
 ```
 
 ## GitHub Actions 配置
@@ -172,9 +169,6 @@ uv add <package-name>
 
 # 运行脚本
 uv run python refresh_code.py
-
-# 使用快捷命令
-uv run live-refresh
 ```
 
 ## 许可证
