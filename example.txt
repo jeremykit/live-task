@@ -1,0 +1,84 @@
+1.这里有3台服务器的配置信息，包括URL、token和room ID
+
+alias: east
+url:live.hiwords.net
+token:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXNzd29yZCI6IjEyMyIsInJvbGUiOiJBIiwidGVhbSI6InRlYWNoZXIiLCJ1c2VyTmFtZSI6InRlYWNoZXIiLCJleHAiOjE3Njc0NTE2NTR9.PL6mfGozAm09mg7ozQFEf17DUMaybBqh7TToOtubQzs
+roomId:1648194612419
+
+alias: west
+url:rtlive.hiwords.net
+token:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXNzd29yZCI6IjEyMyIsInJvbGUiOiJBIiwidGVhbSI6InRlYWNoZXIiLCJ1c2VyTmFtZSI6InRlYWNoZXIiLCJleHAiOjE3Njc0NTE3NzJ9.GNPvfmns7Sv0x3g1rWNvAZGqbdoEC-0DowYRCLPHfzc
+roomId:1737718869513
+
+alias: hebei
+url:live.ours237.top
+token:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXNzd29yZCI6IjEyMyIsInJvbGUiOiJBIiwidGVhbSI6InRlYWNoZXIiLCJ1c2VyTmFtZSI6InRlYWNoZXIiLCJleHAiOjE3Njc0NTE5MDR9.C1wb02dPDLTz2JkJuv6q5GvLP_gwK8EUm33Z_LKnuWQ
+roomId:1648194612419
+
+2.下面有一个接口请求示例,有请求题和响应体
+
+Requst:
+POST https://${url}/api/live/refreshVerifyCode
+content-type:application/json
+
+{"param":"${roomId}"}
+
+response:
+{
+    "meta": {
+        "success": true,
+        "code": "0000",
+        "message": "成功",
+        "processingTime": null
+    },
+    "data": {
+        "id": "1648194612419",
+        "teacherId": "008",
+        "courseId": "003",
+        "majorId": "1002",
+        "name": "五会",
+        "grade": "1",
+        "date": "2025-12-04 22:52:52",
+        "startValidDate": "2023-05-12 18:00:01",
+        "endValidDate": "2031-05-13 18:00:01",
+        "startTime": "19:15:01",
+        "endTime": "20:50:00",
+        "length": "60",
+        "effectFlag": "1",
+        "stats": "1",
+        "statsName": null,
+        "equipmentFlag": null,
+        "type": "1002",
+        "code": "7311",
+        "refreshCode": null,
+        "pushPath": "rtmp://166734.livepush.myqcloud.com/live_008",
+        "pushCode": "1648194612419?txSecret=493959a09e9be19b3cf5e0f0faed2745&txTime=6591678D",
+        "pullPath": "https://pull.hiwords.net/live_008/1648194612419",
+        "videoId": null,
+        "videoPath": null,
+        "startVideoTime": null,
+        "endVideoTime": null,
+        "startTxLive": "1",
+        "exeJob": "1",
+        "exePeriod": "5",
+        "codeRefreshdate": "2025-12-04 22:52:51",
+        "team": null
+    },
+    "pageInfo": null
+}
+
+3.我需要将三个服务器请求的结果汇聚成一个信息，发到这个地址上
+
+
+curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${sendKey}' \
+   -H 'Content-Type: application/json' \
+   -d '
+   {
+    "msgtype": "markdown",
+    "markdown": {
+        "content": "五会刷码成功<font color=\"warning\">3</font> \n
+        ><font color=\"comment\">east</font>:<font color=\"comment\">1173</font>    \n
+        ><font color=\"comment\">west</font>:<font color=\"comment\">1173</font>    \n
+        ><font color=\"comment\">hebei</font>:<font color=\"comment\">1173</font>   "
+    }
+}'

@@ -1,0 +1,41 @@
+name: Refresh Live Room Code
+
+on:
+  schedule:
+    # 每周五中午12点执行（北京时间）
+    # 北京时间 12:00 = UTC 4:00
+    - cron: '0 4 * * 5'
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      run: uv python install 3.12
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run refresh script
+      env:
+        EAST_URL: ${{ secrets.EAST_URL }}
+        EAST_TOKEN: ${{ secrets.EAST_TOKEN }}
+        EAST_ROOM_ID: ${{ secrets.EAST_ROOM_ID }}
+        WEST_URL: ${{ secrets.WEST_URL }}
+        WEST_TOKEN: ${{ secrets.WEST_TOKEN }}
+        WEST_ROOM_ID: ${{ secrets.WEST_ROOM_ID }}
+        HEBEI_URL: ${{ secrets.HEBEI_URL }}
+        HEBEI_TOKEN: ${{ secrets.HEBEI_TOKEN }}
+        HEBEI_ROOM_ID: ${{ secrets.HEBEI_ROOM_ID }}
+        WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
+      run: uv run python refresh_code.py

@@ -1,0 +1,19 @@
+[project]
+name = "live-task"
+version = "0.1.0"
+description = "Live Room Code Refresh Script - 自动刷新直播间验证码并推送到企业微信"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+live-refresh = "refresh_code:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = []
