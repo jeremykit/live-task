@@ -141,14 +141,14 @@ jobs:
 
 ### 1) 部署到 Cloudflare Workers
 
-1. 使用仓库自带的 `worker/wrangler.toml`，按需修改 Worker 名称、`crons`、`compatibility_date` 等配置：
+1. 使用仓库自带的 `worker/wrangler.toml`，默认的 Worker 项目名为 `live-task-refresh`，可按需修改 `name`、`crons`、`compatibility_date` 等配置：
 
 ```toml
 name = "live-task-refresh"
 main = "cf_worker.js"
 compatibility_date = "2024-01-01"
-# 如需启用定时任务（UTC 时间），可按需打开：
-# crons = ["0 4 * * 5"]
+# 默认开启每周五中午 12:00（UTC+8，对应 UTC 04:00）定时任务；如需调整请修改 crons。
+crons = ["0 4 * * 5"]
 
 [vars]
 # 非敏感信息可写在 vars；Token/Key 建议通过 CI 部署命令传入

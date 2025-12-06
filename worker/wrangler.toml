@@ -1,8 +1,8 @@
 name = "live-task-refresh"
 main = "cf_worker.js"
 compatibility_date = "2024-01-01"
-# 默认关闭定时触发，如需启用按需添加，例如每周五中午 12:00（UTC+8）可写为：
-# crons = ["0 4 * * 5"]
+# 默认启用每周五中午 12:00（UTC+8）的定时触发（UTC=04:00），如需调整请修改此处。
+crons = ["0 4 * * 5"]
 
 [vars]
 # 在本地/wrangler 环境中非敏感信息可写在此处；建议将 Token 等敏感值通过 CI 部署传入。
