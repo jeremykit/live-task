@@ -26,13 +26,13 @@ jobs:
           workingDirectory: worker
           command: >-
             deploy
-            --var EAST_URL="${{ secrets.EAST_URL }}"
-            --var EAST_TOKEN="${{ secrets.EAST_TOKEN }}"
-            --var EAST_ROOM_ID="${{ secrets.EAST_ROOM_ID }}"
-            --var WEST_URL="${{ secrets.WEST_URL }}"
-            --var WEST_TOKEN="${{ secrets.WEST_TOKEN }}"
-            --var WEST_ROOM_ID="${{ secrets.WEST_ROOM_ID }}"
-            --var HEBEI_URL="${{ secrets.HEBEI_URL }}"
-            --var HEBEI_TOKEN="${{ secrets.HEBEI_TOKEN }}"
-            --var HEBEI_ROOM_ID="${{ secrets.HEBEI_ROOM_ID }}"
-            --var WECHAT_WEBHOOK_KEY="${{ secrets.WECHAT_WEBHOOK_KEY }}"
+            --var EAST_URL ${{ secrets.EAST_URL }}
+            --var EAST_TOKEN ${{ secrets.EAST_TOKEN }}
+            --var EAST_ROOM_ID ${{ secrets.EAST_ROOM_ID }}
+            --var WEST_URL ${{ secrets.WEST_URL }}
+            --var WEST_TOKEN ${{ secrets.WEST_TOKEN }}
+            --var WEST_ROOM_ID ${{ secrets.WEST_ROOM_ID }}
+            --var HEBEI_URL ${{ secrets.HEBEI_URL }}
+            --var HEBEI_TOKEN ${{ secrets.HEBEI_TOKEN }}
+            --var HEBEI_ROOM_ID ${{ secrets.HEBEI_ROOM_ID }}
+            --var WECHAT_WEBHOOK_KEY ${{ secrets.WECHAT_WEBHOOK_KEY }}

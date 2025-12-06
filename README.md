@@ -161,16 +161,16 @@ crons = ["0 4 * * 5"]
 ```bash
 cd worker
 wrangler deploy \
-  --var EAST_URL="$EAST_URL" \
-  --var EAST_TOKEN="$EAST_TOKEN" \
-  --var EAST_ROOM_ID="$EAST_ROOM_ID" \
-  --var WEST_URL="$WEST_URL" \
-  --var WEST_TOKEN="$WEST_TOKEN" \
-  --var WEST_ROOM_ID="$WEST_ROOM_ID" \
-  --var HEBEI_URL="$HEBEI_URL" \
-  --var HEBEI_TOKEN="$HEBEI_TOKEN" \
-  --var HEBEI_ROOM_ID="$HEBEI_ROOM_ID" \
-  --var WECHAT_WEBHOOK_KEY="$WECHAT_WEBHOOK_KEY"
+  --var EAST_URL $EAST_URL \
+  --var EAST_TOKEN $EAST_TOKEN \
+  --var EAST_ROOM_ID $EAST_ROOM_ID \
+  --var WEST_URL $WEST_URL \
+  --var WEST_TOKEN $WEST_TOKEN \
+  --var WEST_ROOM_ID $WEST_ROOM_ID \
+  --var HEBEI_URL $HEBEI_URL \
+  --var HEBEI_TOKEN $HEBEI_TOKEN \
+  --var HEBEI_ROOM_ID $HEBEI_ROOM_ID \
+  --var WECHAT_WEBHOOK_KEY $WECHAT_WEBHOOK_KEY
 ```
 
 3. 手动触发或接入路由：部署后访问 `https://<worker>.<your-subdomain>.workers.dev/refresh` 即可手动执行。若配置了 `crons`，Worker 会按计划自动执行。
