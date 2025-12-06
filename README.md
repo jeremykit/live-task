@@ -7,7 +7,7 @@
 - 支持多个服务器同时刷新验证码
 - 每个服务器的刷新结果都会单独推送到企业微信群机器人（成功/失败各一条）
 - 支持通过环境变量配置
-- 适合在 GitHub Actions 中定时执行
+- 可在 GitHub Actions 中手动或自定义触发，定时刷新由 Cloudflare Worker 负责
 
 ## 快速开始
 
@@ -96,10 +96,7 @@ uv run python refresh_code.py
 name: Refresh Live Room Code
 
 on:
-  schedule:
-    # 每天 8:00 和 20:00 执行（UTC 时间，需要换算为北京时间）
-    - cron: '0 0,12 * * *'
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch: # 仅手动触发，定时刷新交给 Cloudflare Worker
 
 jobs:
   refresh:
