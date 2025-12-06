@@ -135,13 +135,13 @@ function buildWebhookUrl(env, overrides) {
 async function sendNotification(env, overrides, result) {
   const webhook = buildWebhookUrl(env, overrides);
   const statusText = result.success ? "刷码成功" : "刷码失败";
-  const color = result.success ? "info" : "warning";
-  const details = result.success ? "验证码" : "原因";
+  const prefix = `[${result.alias}]`;
+  const details = result.success ? `验证码：${result.code}` : `原因：${result.code}`;
 
   const payload = {
-    msgtype: "markdown",
-    markdown: {
-      content: `【${result.alias}】${statusText}\n>${details}：<font color=\"${color}\">${result.code}</font>`,
+    msgtype: "text",
+    text: {
+      content: `${prefix}${statusText} ${details}`,
     },
   };
 
