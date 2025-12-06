@@ -174,6 +174,8 @@ wrangler deploy \
 ```
 
 3. 手动触发或接入路由：部署后访问 `https://<worker>.<your-subdomain>.workers.dev/refresh` 即可手动执行。若配置了 `crons`，Worker 会按计划自动执行。
+   - **必须先配置变量**：生产流量下不会读取 `wrangler.toml` 中的占位符，需通过 `wrangler deploy --var ...`、Cloudflare Dashboard「Settings → Variables」或 GitHub Actions Secrets 注入 `EAST_*` / `WEST_*` / `HEBEI_*` 与 `WECHAT_WEBHOOK_KEY`。
+   - **快速联调（无需等待正式变量）**：访问 `.../refresh?east_url=...&east_token=...&east_room_id=...&wechat_webhook_key=...` 可临时传入测试值。仅用于验证逻辑，正式部署仍建议通过变量注入。
 
 #### 如何提前验证定时任务
 
@@ -211,6 +213,7 @@ jobs:
 ```
 
 > 说明：`cf_worker.js` 使用 `fetch`，可在 Cloudflare Workers、Node.js 18+（GitHub Actions 默认环境）以及本地带有全局 fetch 的环境下运行。
+> Cloudflare 编辑器会对 `process` 等 Node 变量标红，它们仅在本地/Node 执行时启用，在 Worker 运行时不会触发，不影响线上逻辑。
 
 ### 3) 通过 GitHub Actions 手动部署 Cloudflare Worker
 

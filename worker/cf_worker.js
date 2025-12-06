@@ -6,26 +6,28 @@
  */
 
 /**
- * Helper to read environment variables from Cloudflare Worker `env` or Node.js `process.env`.
+ * Helper to read environment variables from Cloudflare Worker `env`,
+ * optional ad-hoc overrides (querystring), or Node.js `process.env`.
  * @param {Record<string, string | undefined>} env
+ * @param {Record<string, string | undefined>} overrides
  * @param {string} key
  */
-function getEnv(env, key) {
+function getEnv(env, overrides, key) {
+  if (overrides && overrides[key]) return overrides[key];
   if (env && env[key]) return env[key];
-  if (typeof process !== "undefined" && process.env && process.env[key]) {
-    return process.env[key];
-  }
+  const hasProcess = typeof process !== "undefined" && typeof process.env !== "undefined";
+  if (hasProcess && process.env[key]) return process.env[key];
   return undefined;
 }
 
-function loadServers(env) {
+function loadServers(env, overrides = {}) {
   const aliases = ["EAST", "WEST", "HEBEI"];
   const servers = [];
 
   for (const alias of aliases) {
-    const url = getEnv(env, `${alias}_URL`);
-    const token = getEnv(env, `${alias}_TOKEN`);
-    const roomId = getEnv(env, `${alias}_ROOM_ID`);
+    const url = getEnv(env, overrides, `${alias}_URL`);
+    const token = getEnv(env, overrides, `${alias}_TOKEN`);
+    const roomId = getEnv(env, overrides, `${alias}_ROOM_ID`);
 
     if (url && token && roomId) {
       servers.push({
@@ -38,7 +40,9 @@ function loadServers(env) {
   }
 
   if (!servers.length) {
-    throw new Error("No servers configured via environment variables");
+    throw new Error(
+      "No servers configured via environment variables or query overrides (e.g. ?east_url=...&east_token=...&east_room_id=...)"
+    );
   }
 
   return servers;
@@ -86,8 +90,30 @@ async function safeError(response) {
   }
 }
 
-async function refreshAll(env) {
-  const servers = loadServers(env);
+function parseOverridesFromUrl(url) {
+  const params = new URL(url).searchParams;
+  const map = {};
+
+  const aliases = ["east", "west", "hebei"];
+  for (const alias of aliases) {
+    const upper = alias.toUpperCase();
+    const url = params.get(`${alias}_url`);
+    const token = params.get(`${alias}_token`);
+    const roomId = params.get(`${alias}_room_id`);
+
+    if (url) map[`${upper}_URL`] = url;
+    if (token) map[`${upper}_TOKEN`] = token;
+    if (roomId) map[`${upper}_ROOM_ID`] = roomId;
+  }
+
+  const webhook = params.get("wechat_webhook_key");
+  if (webhook) map.WECHAT_WEBHOOK_KEY = webhook;
+
+  return map;
+}
+
+async function refreshAll(env, overrides) {
+  const servers = loadServers(env, overrides);
   const results = [];
 
   for (const server of servers) {
@@ -98,16 +124,16 @@ async function refreshAll(env) {
   return results;
 }
 
-function buildWebhookUrl(env) {
-  const key = getEnv(env, "WECHAT_WEBHOOK_KEY");
+function buildWebhookUrl(env, overrides) {
+  const key = getEnv(env, overrides, "WECHAT_WEBHOOK_KEY");
   if (!key) {
     throw new Error("WECHAT_WEBHOOK_KEY is missing");
   }
   return `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${key}`;
 }
 
-async function sendNotification(env, result) {
-  const webhook = buildWebhookUrl(env);
+async function sendNotification(env, overrides, result) {
+  const webhook = buildWebhookUrl(env, overrides);
   const statusText = result.success ? "刷码成功" : "刷码失败";
   const color = result.success ? "info" : "warning";
   const details = result.success ? "验证码" : "原因";
@@ -136,17 +162,18 @@ async function sendNotification(env, result) {
   }
 }
 
-async function run(env) {
-  const results = await refreshAll(env);
+async function run(env, overrides = {}) {
+  const results = await refreshAll(env, overrides);
   for (const result of results) {
-    await sendNotification(env, result);
+    await sendNotification(env, overrides, result);
   }
   return { results };
 }
 
 async function handleRequest(request, env) {
   try {
-    const { results } = await run(env);
+    const overrides = parseOverridesFromUrl(request.url);
+    const { results } = await run(env, overrides);
     return new Response(JSON.stringify({ ok: true, results }), {
       status: 200,
       headers: { "content-type": "application/json" },
@@ -181,11 +208,10 @@ export default {
 };
 
 // Allow local execution with `node cf_worker.js`
-if (
-  typeof module !== "undefined" &&
-  typeof require !== "undefined" &&
-  require.main === module
-) {
+const isNode = typeof process !== "undefined" && process?.release?.name === "node";
+const invokedDirectly = isNode && process.argv?.[1]?.includes("cf_worker.js");
+
+if (invokedDirectly) {
   run(process.env)
     .then(({ results }) => {
       console.log("Refresh finished", results);
