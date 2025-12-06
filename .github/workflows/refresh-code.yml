@@ -1,11 +1,7 @@
 name: Refresh Live Room Code
 
 on:
-  schedule:
-    # 每周五中午12点执行（北京时间）
-    # 北京时间 12:00 = UTC 4:00
-    - cron: '0 4 * * 5'
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch: # 手动触发（定时已交给 Cloudflare Worker）
 
 jobs:
   refresh:

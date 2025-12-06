@@ -56,17 +56,18 @@ class LiveCodeRefresher:
                     "success": True
                 }
             else:
-                print(f"[{server.alias}] 刷新失败: {data.get('meta', {}).get('message', 'Unknown error')}")
+                message = data.get("meta", {}).get("message", "刷新失败")
+                print(f"[{server.alias}] 刷新失败: {message}")
                 return {
                     "alias": server.alias,
-                    "code": "失败",
+                    "code": message,
                     "success": False
                 }
         except Exception as e:
             print(f"[{server.alias}] 请求异常: {str(e)}")
             return {
                 "alias": server.alias,
-                "code": "异常",
+                "code": str(e),
                 "success": False
             }
 
@@ -85,33 +86,18 @@ class LiveCodeRefresher:
                 results.append(result)
         return results
 
-    def send_notification(self, results: List[Dict]) -> bool:
-        """
-        发送通知到企业微信
-
-        Args:
-            results: 刷新结果列表
-
-        Returns:
-            发送是否成功
-        """
-        success_count = sum(1 for r in results if r.get("success"))
-
-        # 构建 markdown 内容
-        content_lines = [f"五会刷码成功<font color=\"warning\">{success_count}</font>/{len(results)}\n"]
-
-        for result in results:
-            alias = result.get("alias", "unknown")
-            code = result.get("code", "N/A")
-            color = "info" if result.get("success") else "warning"
-            content_lines.append(f"<font color=\"comment\">{alias}</font>:<font color=\"{color}\">{code}</font>")
-
-        content = "\n>".join(content_lines)
+    def send_notification(self, result: Dict) -> bool:
+        """按服务器分别发送文本通知到企业微信"""
+        alias = result.get("alias", "unknown")
+        code = result.get("code", "N/A")
+        success = result.get("success", False)
+        status = "刷码成功" if success else "刷码失败"
+        details = f"验证码：{code}" if success else f"原因：{code}"
 
         payload = {
-            "msgtype": "markdown",
-            "markdown": {
-                "content": content
+            "msgtype": "text",
+            "text": {
+                "content": f"[{alias}]{status} {details}"
             }
         }
 
@@ -121,13 +107,13 @@ class LiveCodeRefresher:
             result = response.json()
 
             if result.get("errcode") == 0:
-                print("通知发送成功！")
+                print(f"[{alias}] 通知发送成功！")
                 return True
             else:
-                print(f"通知发送失败: {result.get('errmsg', 'Unknown error')}")
+                print(f"[{alias}] 通知发送失败: {result.get('errmsg', 'Unknown error')}")
                 return False
         except Exception as e:
-            print(f"发送通知异常: {str(e)}")
+            print(f"[{alias}] 发送通知异常: {str(e)}")
             return False
 
     def run(self):
@@ -138,13 +124,15 @@ class LiveCodeRefresher:
 
         results = self.refresh_all()
 
-        if results:
-            print("\n" + "=" * 50)
-            print("刷新完成，发送通知...")
-            print("=" * 50)
-            self.send_notification(results)
-        else:
+        if not results:
             print("没有获取到任何结果")
+            return
+
+        print("\n" + "=" * 50)
+        print("刷新完成，发送通知...")
+        print("=" * 50)
+        for result in results:
+            self.send_notification(result)
 
 
 def load_config_from_env() -> tuple[List[ServerConfig], str]:
