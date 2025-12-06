@@ -106,20 +106,16 @@ function buildWebhookUrl(env) {
   return `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${key}`;
 }
 
-async function sendNotification(env, results) {
+async function sendNotification(env, result) {
   const webhook = buildWebhookUrl(env);
-  const successCount = results.filter((r) => r.success).length;
-
-  const lines = [`刷码成功<font color=\"warning\">${successCount}</font>/${results.length}`];
-  for (const result of results) {
-    const color = result.success ? "info" : "warning";
-    lines.push(`<font color=\"comment\">${result.alias}</font>:<font color=\"${color}\">${result.code}</font>`);
-  }
+  const statusText = result.success ? "刷码成功" : "刷码失败";
+  const color = result.success ? "info" : "warning";
+  const details = result.success ? "验证码" : "原因";
 
   const payload = {
     msgtype: "markdown",
     markdown: {
-      content: lines.join("\n>"),
+      content: `【${result.alias}】${statusText}\n>${details}：<font color=\"${color}\">${result.code}</font>`,
     },
   };
 
@@ -142,7 +138,9 @@ async function sendNotification(env, results) {
 
 async function run(env) {
   const results = await refreshAll(env);
-  await sendNotification(env, results);
+  for (const result of results) {
+    await sendNotification(env, result);
+  }
   return { results };
 }
 

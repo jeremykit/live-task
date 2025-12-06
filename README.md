@@ -5,7 +5,7 @@
 ## 功能特性
 
 - 支持多个服务器同时刷新验证码
-- 自动推送结果到企业微信群机器人
+- 每个服务器的刷新结果都会单独推送到企业微信群机器人（成功/失败各一条）
 - 支持通过环境变量配置
 - 适合在 GitHub Actions 中定时执行
 
@@ -153,10 +153,7 @@ compatibility_date = "2024-01-01"
 crons = ["0 4 * * 5"]
 
 [vars]
-# 非敏感信息可写在 vars；Token/Key 建议通过 CI 部署命令传入
-EAST_URL = "your-east-server.com"
-WEST_URL = "your-west-server.com"
-HEBEI_URL = "your-hebei-server.com"
+# 可选：非敏感信息可写在 vars；敏感 Token/Key 建议通过 CI 或 wrangler 命令行传入
 ```
 
 2. 部署：
@@ -177,6 +174,11 @@ wrangler deploy \
 ```
 
 3. 手动触发或接入路由：部署后访问 `https://<worker>.<your-subdomain>.workers.dev/refresh` 即可手动执行。若配置了 `crons`，Worker 会按计划自动执行。
+
+#### 如何提前验证定时任务
+
+- **本地/远程模拟定时触发**：在 `worker` 目录下运行 `wrangler dev --remote --test-scheduled`，Wrangler 会模拟一次 `scheduled` 事件执行，无需等待实际 Cron 时间。
+- **临时修改 Cron**：将 `wrangler.toml` 中的 `crons` 调整为几分钟后的时间部署一次，用 `wrangler tail` 观察日志；验证后再改回正式的周五 12:00 配置。
 
 ### 2) 在 GitHub Actions / 本地运行同一份 Worker 代码
 
