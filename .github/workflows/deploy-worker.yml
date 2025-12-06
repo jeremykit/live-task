@@ -18,21 +18,49 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Inject secrets into wrangler.toml
+        working-directory: worker
+        env:
+          EAST_URL: ${{ secrets.EAST_URL }}
+          EAST_TOKEN: ${{ secrets.EAST_TOKEN }}
+          EAST_ROOM_ID: ${{ secrets.EAST_ROOM_ID }}
+          WEST_URL: ${{ secrets.WEST_URL }}
+          WEST_TOKEN: ${{ secrets.WEST_TOKEN }}
+          WEST_ROOM_ID: ${{ secrets.WEST_ROOM_ID }}
+          HEBEI_URL: ${{ secrets.HEBEI_URL }}
+          HEBEI_TOKEN: ${{ secrets.HEBEI_TOKEN }}
+          HEBEI_ROOM_ID: ${{ secrets.HEBEI_ROOM_ID }}
+          WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path("wrangler.toml")
+          data = path.read_text()
+          replacements = {
+              "__EAST_URL__": os.environ.get("EAST_URL", ""),
+              "__EAST_TOKEN__": os.environ.get("EAST_TOKEN", ""),
+              "__EAST_ROOM_ID__": os.environ.get("EAST_ROOM_ID", ""),
+              "__WEST_URL__": os.environ.get("WEST_URL", ""),
+              "__WEST_TOKEN__": os.environ.get("WEST_TOKEN", ""),
+              "__WEST_ROOM_ID__": os.environ.get("WEST_ROOM_ID", ""),
+              "__HEBEI_URL__": os.environ.get("HEBEI_URL", ""),
+              "__HEBEI_TOKEN__": os.environ.get("HEBEI_TOKEN", ""),
+              "__HEBEI_ROOM_ID__": os.environ.get("HEBEI_ROOM_ID", ""),
+              "__WECHAT_WEBHOOK_KEY__": os.environ.get("WECHAT_WEBHOOK_KEY", ""),
+          }
+
+          for placeholder, value in replacements.items():
+              data = data.replace(placeholder, value)
+
+          path.write_text(data)
+          PY
+
       - name: Publish Worker to Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
-          command: >-
-            deploy
-            --var EAST_URL ${{ secrets.EAST_URL }}
-            --var EAST_TOKEN ${{ secrets.EAST_TOKEN }}
-            --var EAST_ROOM_ID ${{ secrets.EAST_ROOM_ID }}
-            --var WEST_URL ${{ secrets.WEST_URL }}
-            --var WEST_TOKEN ${{ secrets.WEST_TOKEN }}
-            --var WEST_ROOM_ID ${{ secrets.WEST_ROOM_ID }}
-            --var HEBEI_URL ${{ secrets.HEBEI_URL }}
-            --var HEBEI_TOKEN ${{ secrets.HEBEI_TOKEN }}
-            --var HEBEI_ROOM_ID ${{ secrets.HEBEI_ROOM_ID }}
-            --var WECHAT_WEBHOOK_KEY ${{ secrets.WECHAT_WEBHOOK_KEY }}
+          command: deploy

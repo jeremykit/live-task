@@ -1,10 +1,19 @@
 name = "live-task-refresh"
 main = "cf_worker.js"
 compatibility_date = "2024-01-01"
-# 默认启用每周五中午 12:00（UTC+8）的定时触发（UTC=04:00），如需调整请修改此处。
-
+# 默认启用每周五中午 12:00（UTC+8，对应 UTC 04:00）的定时触发
 [triggers]
 crons = ["0 4 * * 5"]
 
 [vars]
-# 可选：在本地/wrangler 环境中非敏感信息可写在此处；敏感值请通过 CI 或 wrangler 命令行传入。
+# 通过 GitHub Actions / wrangler 部署时会将以下占位符替换为真实值
+EAST_URL = "__EAST_URL__"
+EAST_TOKEN = "__EAST_TOKEN__"
+EAST_ROOM_ID = "__EAST_ROOM_ID__"
+WEST_URL = "__WEST_URL__"
+WEST_TOKEN = "__WEST_TOKEN__"
+WEST_ROOM_ID = "__WEST_ROOM_ID__"
+HEBEI_URL = "__HEBEI_URL__"
+HEBEI_TOKEN = "__HEBEI_TOKEN__"
+HEBEI_ROOM_ID = "__HEBEI_ROOM_ID__"
+WECHAT_WEBHOOK_KEY = "__WECHAT_WEBHOOK_KEY__"

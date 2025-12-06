@@ -153,28 +153,54 @@ compatibility_date = "2024-01-01"
 crons = ["0 4 * * 5"]
 
 [vars]
-# 可选：非敏感信息可写在 vars；敏感 Token/Key 建议通过 CI 或 wrangler 命令行传入
+# 通过部署流程把占位符替换为真实值
+EAST_URL = "__EAST_URL__"
+EAST_TOKEN = "__EAST_TOKEN__"
+EAST_ROOM_ID = "__EAST_ROOM_ID__"
+WEST_URL = "__WEST_URL__"
+WEST_TOKEN = "__WEST_TOKEN__"
+WEST_ROOM_ID = "__WEST_ROOM_ID__"
+HEBEI_URL = "__HEBEI_URL__"
+HEBEI_TOKEN = "__HEBEI_TOKEN__"
+HEBEI_ROOM_ID = "__HEBEI_ROOM_ID__"
+WECHAT_WEBHOOK_KEY = "__WECHAT_WEBHOOK_KEY__"
 ```
 
 2. 部署：
 
 ```bash
 cd worker
-wrangler deploy \
-  --var EAST_URL $EAST_URL \
-  --var EAST_TOKEN $EAST_TOKEN \
-  --var EAST_ROOM_ID $EAST_ROOM_ID \
-  --var WEST_URL $WEST_URL \
-  --var WEST_TOKEN $WEST_TOKEN \
-  --var WEST_ROOM_ID $WEST_ROOM_ID \
-  --var HEBEI_URL $HEBEI_URL \
-  --var HEBEI_TOKEN $HEBEI_TOKEN \
-  --var HEBEI_ROOM_ID $HEBEI_ROOM_ID \
-  --var WECHAT_WEBHOOK_KEY $WECHAT_WEBHOOK_KEY
+# 将占位符替换为实际值（与 GitHub Actions 同步的写法，避免 key=value 被当作变量名）
+python - <<'PY'
+import os
+from pathlib import Path
+
+path = Path("wrangler.toml")
+data = path.read_text()
+replacements = {
+    "__EAST_URL__": os.environ.get("EAST_URL", ""),
+    "__EAST_TOKEN__": os.environ.get("EAST_TOKEN", ""),
+    "__EAST_ROOM_ID__": os.environ.get("EAST_ROOM_ID", ""),
+    "__WEST_URL__": os.environ.get("WEST_URL", ""),
+    "__WEST_TOKEN__": os.environ.get("WEST_TOKEN", ""),
+    "__WEST_ROOM_ID__": os.environ.get("WEST_ROOM_ID", ""),
+    "__HEBEI_URL__": os.environ.get("HEBEI_URL", ""),
+    "__HEBEI_TOKEN__": os.environ.get("HEBEI_TOKEN", ""),
+    "__HEBEI_ROOM_ID__": os.environ.get("HEBEI_ROOM_ID", ""),
+    "__WECHAT_WEBHOOK_KEY__": os.environ.get("WECHAT_WEBHOOK_KEY", ""),
+}
+
+for placeholder, value in replacements.items():
+    data = data.replace(placeholder, value)
+
+path.write_text(data)
+PY
+
+wrangler deploy
 ```
 
 3. 手动触发或接入路由：部署后访问 `https://<worker>.<your-subdomain>.workers.dev/refresh` 即可手动执行。若配置了 `crons`，Worker 会按计划自动执行。
-   - **必须先配置变量**：生产流量下不会读取 `wrangler.toml` 中的占位符，需通过 `wrangler deploy --var ...`、Cloudflare Dashboard「Settings → Variables」或 GitHub Actions Secrets 注入 `EAST_*` / `WEST_*` / `HEBEI_*` 与 `WECHAT_WEBHOOK_KEY`。
+   - **必须先配置变量**：部署前先用上面的占位符替换脚本（或改用 `wrangler deploy --var ...`、Cloudflare Dashboard「Settings → Variables」或 GitHub Actions Secrets）把 `EAST_*` / `WEST_*` / `HEBEI_*` 与 `WECHAT_WEBHOOK_KEY` 注入，否则 Worker 会提示「未配置服务端」。
    - **快速联调（无需等待正式变量）**：访问 `.../refresh?east_url=...&east_token=...&east_room_id=...&wechat_webhook_key=...` 可临时传入测试值。仅用于验证逻辑，正式部署仍建议通过变量注入。
 
 #### 如何提前验证定时任务
@@ -224,7 +250,7 @@ jobs:
    - `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 账户 ID
    - `EAST_URL`、`EAST_TOKEN`、`EAST_ROOM_ID`、`WEST_URL`、`WEST_TOKEN`、`WEST_ROOM_ID`、`HEBEI_URL`、`HEBEI_TOKEN`、`HEBEI_ROOM_ID`、`WECHAT_WEBHOOK_KEY`
 2. 进入 GitHub Actions → `Deploy Cloudflare Worker` → `Run workflow` 手动触发。
-3. 工作流会读取 `worker/wrangler.toml` 并注入上述 Secrets 完成部署。
+3. 工作流会先将 `worker/wrangler.toml` 中的占位符替换为 Secrets，再执行部署，避免 `key=value` 被误识别为变量名。
 
 ## 企业微信机器人配置
 
