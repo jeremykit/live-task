@@ -5,7 +5,7 @@
 ## 功能特性
 
 - 支持多个服务器同时刷新验证码
-- 自动推送结果到企业微信群机器人
+- 每个服务器的刷新结果都会单独推送到企业微信群机器人（成功/失败各一条）
 - 支持通过环境变量配置
 - 适合在 GitHub Actions 中定时执行
 
@@ -135,6 +135,97 @@ jobs:
       run: uv run python refresh_code.py
 ```
 
+## 在 Cloudflare Workers 上运行
+
+`worker/cf_worker.js` 提供了与 `refresh_code.py` 相同的逻辑，既可以作为 Worker 部署，也可以在本地或 GitHub Actions 中直接运行，方便对比两种运行环境的效果。该目录同时包含 `wrangler.toml`，可直接用于发布。
+
+### 1) 部署到 Cloudflare Workers
+
+1. 使用仓库自带的 `worker/wrangler.toml`，默认的 Worker 项目名为 `live-task-refresh`，可按需修改 `name`、`crons`、`compatibility_date` 等配置：
+
+```toml
+name = "live-task-refresh"
+main = "cf_worker.js"
+compatibility_date = "2024-01-01"
+# 默认开启每周五中午 12:00（UTC+8，对应 UTC 04:00）定时任务；如需调整请修改 crons。
+
+[triggers]
+crons = ["0 4 * * 5"]
+
+[vars]
+# 可选：非敏感信息可写在 vars；敏感 Token/Key 建议通过 CI 或 wrangler 命令行传入
+```
+
+2. 部署：
+
+```bash
+cd worker
+wrangler deploy \
+  --var EAST_URL $EAST_URL \
+  --var EAST_TOKEN $EAST_TOKEN \
+  --var EAST_ROOM_ID $EAST_ROOM_ID \
+  --var WEST_URL $WEST_URL \
+  --var WEST_TOKEN $WEST_TOKEN \
+  --var WEST_ROOM_ID $WEST_ROOM_ID \
+  --var HEBEI_URL $HEBEI_URL \
+  --var HEBEI_TOKEN $HEBEI_TOKEN \
+  --var HEBEI_ROOM_ID $HEBEI_ROOM_ID \
+  --var WECHAT_WEBHOOK_KEY $WECHAT_WEBHOOK_KEY
+```
+
+3. 手动触发或接入路由：部署后访问 `https://<worker>.<your-subdomain>.workers.dev/refresh` 即可手动执行。若配置了 `crons`，Worker 会按计划自动执行。
+   - **必须先配置变量**：生产流量下不会读取 `wrangler.toml` 中的占位符，需通过 `wrangler deploy --var ...`、Cloudflare Dashboard「Settings → Variables」或 GitHub Actions Secrets 注入 `EAST_*` / `WEST_*` / `HEBEI_*` 与 `WECHAT_WEBHOOK_KEY`。
+   - **快速联调（无需等待正式变量）**：访问 `.../refresh?east_url=...&east_token=...&east_room_id=...&wechat_webhook_key=...` 可临时传入测试值。仅用于验证逻辑，正式部署仍建议通过变量注入。
+
+#### 如何提前验证定时任务
+
+- **本地/远程模拟定时触发**：在 `worker` 目录下运行 `wrangler dev --remote --test-scheduled`，Wrangler 会模拟一次 `scheduled` 事件执行，无需等待实际 Cron 时间。
+- **临时修改 Cron**：将 `wrangler.toml` 中的 `crons` 调整为几分钟后的时间部署一次，用 `wrangler tail` 观察日志；验证后再改回正式的周五 12:00 配置。
+
+### 2) 在 GitHub Actions / 本地运行同一份 Worker 代码
+
+`worker/cf_worker.js` 也支持 Node.js 执行，便于在 GitHub Actions 中与 Python 版本对比：
+
+```yaml
+name: Run CF Worker Script
+on:
+  workflow_dispatch:
+
+jobs:
+  run-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run worker logic
+        env:
+          EAST_URL: ${{ secrets.EAST_URL }}
+          EAST_TOKEN: ${{ secrets.EAST_TOKEN }}
+          EAST_ROOM_ID: ${{ secrets.EAST_ROOM_ID }}
+          WEST_URL: ${{ secrets.WEST_URL }}
+          WEST_TOKEN: ${{ secrets.WEST_TOKEN }}
+          WEST_ROOM_ID: ${{ secrets.WEST_ROOM_ID }}
+          HEBEI_URL: ${{ secrets.HEBEI_URL }}
+          HEBEI_TOKEN: ${{ secrets.HEBEI_TOKEN }}
+          HEBEI_ROOM_ID: ${{ secrets.HEBEI_ROOM_ID }}
+          WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
+        run: |
+          node worker/cf_worker.js
+```
+
+> 说明：`cf_worker.js` 使用 `fetch`，可在 Cloudflare Workers、Node.js 18+（GitHub Actions 默认环境）以及本地带有全局 fetch 的环境下运行。
+> Cloudflare 编辑器会对 `process` 等 Node 变量标红，它们仅在本地/Node 执行时启用，在 Worker 运行时不会触发，不影响线上逻辑。
+
+### 3) 通过 GitHub Actions 手动部署 Cloudflare Worker
+
+仓库已提供 `.github/workflows/deploy-worker.yml`，支持手动触发发布至 Cloudflare Workers。
+
+1. 在仓库 Secrets 中新增以下凭据（Settings → Secrets and variables → Actions）：
+   - `CLOUDFLARE_API_TOKEN`：具备 `Workers Scripts`、`Workers KV Storage`（如需）等权限
+   - `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 账户 ID
+   - `EAST_URL`、`EAST_TOKEN`、`EAST_ROOM_ID`、`WEST_URL`、`WEST_TOKEN`、`WEST_ROOM_ID`、`HEBEI_URL`、`HEBEI_TOKEN`、`HEBEI_ROOM_ID`、`WECHAT_WEBHOOK_KEY`
+2. 进入 GitHub Actions → `Deploy Cloudflare Worker` → `Run workflow` 手动触发。
+3. 工作流会读取 `worker/wrangler.toml` 并注入上述 Secrets 完成部署。
+
 ## 企业微信机器人配置
 
 1. 在企业微信群中添加机器人
@@ -148,9 +239,11 @@ live-task/
 ├── refresh_code.py      # 主程序脚本
 ├── pyproject.toml       # 项目配置和依赖管理
 ├── README.md            # 项目说明文档
+├── worker/              # Cloudflare Worker 版本代码与 wrangler 配置
 └── .github/
     └── workflows/
-        └── refresh-code.yml  # GitHub Actions 工作流
+        ├── deploy-worker.yml # 手动部署 Cloudflare Worker 的工作流
+        └── refresh-code.yml  # 刷新验证码工作流
 ```
 
 ## 依赖说明

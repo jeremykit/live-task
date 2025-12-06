@@ -1,0 +1,10 @@
+name = "live-task-refresh"
+main = "cf_worker.js"
+compatibility_date = "2024-01-01"
+# 默认启用每周五中午 12:00（UTC+8）的定时触发（UTC=04:00），如需调整请修改此处。
+
+[triggers]
+crons = ["0 4 * * 5"]
+
+[vars]
+# 可选：在本地/wrangler 环境中非敏感信息可写在此处；敏感值请通过 CI 或 wrangler 命令行传入。
