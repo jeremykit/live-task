@@ -148,6 +148,8 @@ name = "live-task-refresh"
 main = "cf_worker.js"
 compatibility_date = "2024-01-01"
 # 默认开启每周五中午 12:00（UTC+8，对应 UTC 04:00）定时任务；如需调整请修改 crons。
+
+[triggers]
 crons = ["0 4 * * 5"]
 
 [vars]

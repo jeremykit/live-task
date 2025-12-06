@@ -183,7 +183,11 @@ export default {
 };
 
 // Allow local execution with `node cf_worker.js`
-if (typeof require !== "undefined" && require.main === module) {
+if (
+  typeof module !== "undefined" &&
+  typeof require !== "undefined" &&
+  require.main === module
+) {
   run(process.env)
     .then(({ results }) => {
       console.log("Refresh finished", results);
