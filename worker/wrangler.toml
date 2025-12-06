@@ -1,0 +1,13 @@
+name = "live-task-refresh"
+main = "cf_worker.js"
+compatibility_date = "2024-01-01"
+# 默认启用每周五中午 12:00（UTC+8）的定时触发（UTC=04:00），如需调整请修改此处。
+
+[triggers]
+crons = ["0 4 * * 5"]
+
+[vars]
+# 在本地/wrangler 环境中非敏感信息可写在此处；建议将 Token 等敏感值通过 CI 部署传入。
+EAST_URL = "your-east-server.com"
+WEST_URL = "your-west-server.com"
+HEBEI_URL = "your-hebei-server.com"
