@@ -1,29 +1,74 @@
-1.这里有3台服务器的配置信息，包括URL、token和room ID
+1.这里有3台服务器的配置信息，包括URL、token
+server1：
+  alias: east
+  url:live.xxx1.net
+server2：
+  alias: west
+  url:live.xxx2.net
+server3：
+  alias: hebei
+  url:live.xxx3.top
 
-alias: east
-url:live.xxx1.net
-token: TOKEN1
-roomId:10001
-
-alias: west
-url:live.xxx2.net
-token: TOKEN2
-roomId:10001
-
-alias: hebei
-url:live.xxx3.top
-token: TOKEN3
-roomId:10001
+token: 是公共的配置
 
 2.下面有一个接口请求示例,有请求题和响应体
+2.1、获取所有的直播房间列表：
+（1）请求
+POST https://live.ours237.top/api/live/liveList
+Content-Type: application/json
+Token: ${token}
 
-Requst:
+{"pageInfo":{"orderBy":"","pageNum":1,"pageSize":1000,"total":100,"pages":10},"param":{}}
+
+（2）响应：
+{
+  "meta": {
+    "success": true,
+    "code": "0000",
+    "message": "成功",
+    "processingTime": null
+  },
+  "data": [
+    {
+      "id": "1648194612419",     
+      "name": "五会"
+    },
+    {
+      "id": "1663938648396",    
+      "name": "6约-pm1"      
+    },
+    {
+      "id": "1757924096604",     
+      "name": "贰"
+    },
+    {
+      "id": "1683458146958",      
+      "name": "回放"
+    },
+    {
+      "id": "1650157624065",     
+      "name": "7日"    
+    }
+  ],
+  "pageInfo": {
+    "pageNum": 1,
+    "pageSize": 1000,
+    "total": 5,
+    "orderBy": "",
+    "pages": 1
+  }
+}
+
+
+2.2、刷新指定房间的直播校验码：
+（1）请求
 POST https://${url}/api/live/refreshVerifyCode
 content-type:application/json
+Token: ${token}
 
-{"param":"${roomId}"}
+{"param":"${liveId}"}
 
-response:
+（2）响应：
 {
     "meta": {
         "success": true,
@@ -40,18 +85,27 @@ response:
     "pageInfo": null
 }
 
-3.我需要将三个服务器请求的结果汇聚成一个信息，发到这个地址上
-
+2.3、我需要将三个服务器请求的结果汇聚成一个信息，发到这个地址上
 
 curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${sendKey}' \
    -H 'Content-Type: application/json' \
    -d '
    {
-    "msgtype": "markdown",
-    "markdown": {
-        "content": "五会刷码成功<font color=\"warning\">3</font> \n
-        ><font color=\"comment\">east</font>:<font color=\"comment\">1173</font>    \n
-        ><font color=\"comment\">west</font>:<font color=\"comment\">1173</font>    \n
-        ><font color=\"comment\">hebei</font>:<font color=\"comment\">1173</font>   "
+    "msgtype": "text",
+    "text": {
+        "content": "【east】刷码成功\n
+          五会:7311\n
+          6约-pm1:8634\n
+          7日:8975"
     }
 }'
+
+
+3、需求描述，
+3.1、遍历配置的SERVER_URL_LIST，拼接API接口2.1地址
+3.2、通过API接口2.1获取所有的直播房间列表，
+3.3、然后通过我配置的LIVE_NAME_LIST中的名称，匹配列表数据中"data"->"name"过滤的直播数据，
+3.4、解析得到的直播数据的"data"->"id"
+3.5、通过API接口2.2 进行刷码，解析得到新的直播码 "data"->"code"
+3.6、遍历所有匹配的直播数据进行刷码
+3.7、最后获取SERVER_URL对应的SERVER_ALIAS，通过API接口2.3将本SERVER的刷码数据按照示例格式组装推送出去

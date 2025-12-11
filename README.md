@@ -43,20 +43,11 @@ uv sync
 创建 `.env` 文件或设置以下环境变量：
 
 ```bash
-# 东区服务器配置
-export EAST_URL="your-east-server.com"
-export EAST_TOKEN="your-east-token"
-export EAST_ROOM_ID="your-east-room-id"
-
-# 西区服务器配置
-export WEST_URL="your-west-server.com"
-export WEST_TOKEN="your-west-token"
-export WEST_ROOM_ID="your-west-room-id"
-
-# 河北服务器配置
-export HEBEI_URL="your-hebei-server.com"
-export HEBEI_TOKEN="your-hebei-token"
-export HEBEI_ROOM_ID="your-hebei-room-id"
+# 服务器配置
+export SERVER_ALIAS_LIST="east,west,hebei"
+export SERVER_URL_LIST="your-east-server.com,your-west-server.com,your-hebei-server.com"
+export LIVE_NAME_LIST="五会,6约,7日"
+export SERVER_TOKEN="your-east-token"
 
 # 企业微信 Webhook Key
 export WECHAT_WEBHOOK_KEY="your-wechat-webhook-key"
@@ -77,15 +68,10 @@ uv run python refresh_code.py
 
 | Secret 名称 | 说明 | 示例 |
 |------------|------|------|
-| `EAST_URL` | 东区服务器地址 | `api.example.com` |
-| `EAST_TOKEN` | 东区服务器 Token | `eyJhbGciOiJIUzI1NiIsInR5cCI6...` |
-| `EAST_ROOM_ID` | 东区直播间 ID | `12345` |
-| `WEST_URL` | 西区服务器地址 | `api.example.com` |
-| `WEST_TOKEN` | 西区服务器 Token | `eyJhbGciOiJIUzI1NiIsInR5cCI6...` |
-| `WEST_ROOM_ID` | 西区直播间 ID | `12346` |
-| `HEBEI_URL` | 河北服务器地址 | `api.example.com` |
-| `HEBEI_TOKEN` | 河北服务器 Token | `eyJhbGciOiJIUzI1NiIsInR5cCI6...` |
-| `HEBEI_ROOM_ID` | 河北直播间 ID | `12347` |
+| `SERVER_ALIAS_LIST` | 服务器别名列表 | `east,west,hebei` |
+| `SERVER_URL_LIST` | 服务器地址列表 | `your-east-server.com,your-west-server.com,your-hebei-server.com` |
+| `SERVER_TOKEN` | 服务器 Token | `eyJhbGciOiJIUzI1NiIsInR5cCI6...` |
+| `LIVE_NAME_LIST` | 直播房间名称列表 | `五会,6约,7日` |
 | `WECHAT_WEBHOOK_KEY` | 企业微信机器人 Key | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
 
 ### 创建 Workflow 文件
@@ -119,15 +105,10 @@ jobs:
 
     - name: Run refresh script
       env:
-        EAST_URL: ${{ secrets.EAST_URL }}
-        EAST_TOKEN: ${{ secrets.EAST_TOKEN }}
-        EAST_ROOM_ID: ${{ secrets.EAST_ROOM_ID }}
-        WEST_URL: ${{ secrets.WEST_URL }}
-        WEST_TOKEN: ${{ secrets.WEST_TOKEN }}
-        WEST_ROOM_ID: ${{ secrets.WEST_ROOM_ID }}
-        HEBEI_URL: ${{ secrets.HEBEI_URL }}
-        HEBEI_TOKEN: ${{ secrets.HEBEI_TOKEN }}
-        HEBEI_ROOM_ID: ${{ secrets.HEBEI_ROOM_ID }}
+        SERVER_ALIAS_LIST: ${{ secrets.SERVER_ALIAS_LIST }}
+        SERVER_URL_LIST: ${{ secrets.SERVER_URL_LIST }}
+        SERVER_TOKEN: ${{ secrets.SERVER_TOKEN }}
+        LIVE_NAME_LIST: ${{ secrets.LIVE_NAME_LIST }}
         WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
       run: uv run python refresh_code.py
 ```
@@ -147,19 +128,14 @@ compatibility_date = "2024-01-01"
 # 默认开启每周五中午 12:00（UTC+8，对应 UTC 04:00）定时任务；如需调整请修改 crons。
 
 [triggers]
-crons = ["0 4 * * 5"]
+crons = ["0 4 * * 6"]
 
 [vars]
 # 通过部署流程把占位符替换为真实值
-EAST_URL = "__EAST_URL__"
-EAST_TOKEN = "__EAST_TOKEN__"
-EAST_ROOM_ID = "__EAST_ROOM_ID__"
-WEST_URL = "__WEST_URL__"
-WEST_TOKEN = "__WEST_TOKEN__"
-WEST_ROOM_ID = "__WEST_ROOM_ID__"
-HEBEI_URL = "__HEBEI_URL__"
-HEBEI_TOKEN = "__HEBEI_TOKEN__"
-HEBEI_ROOM_ID = "__HEBEI_ROOM_ID__"
+SERVER_ALIAS_LIST = "__SERVER_ALIAS_LIST__"
+SERVER_URL_LIST = "__SERVER_URL_LIST__"
+SERVER_TOKEN = "__SERVER_TOKEN__"
+LIVE_NAME_LIST = "__LIVE_NAME_LIST__"
 WECHAT_WEBHOOK_KEY = "__WECHAT_WEBHOOK_KEY__"
 ```
 
@@ -175,15 +151,10 @@ from pathlib import Path
 path = Path("wrangler.toml")
 data = path.read_text()
 replacements = {
-    "__EAST_URL__": os.environ.get("EAST_URL", ""),
-    "__EAST_TOKEN__": os.environ.get("EAST_TOKEN", ""),
-    "__EAST_ROOM_ID__": os.environ.get("EAST_ROOM_ID", ""),
-    "__WEST_URL__": os.environ.get("WEST_URL", ""),
-    "__WEST_TOKEN__": os.environ.get("WEST_TOKEN", ""),
-    "__WEST_ROOM_ID__": os.environ.get("WEST_ROOM_ID", ""),
-    "__HEBEI_URL__": os.environ.get("HEBEI_URL", ""),
-    "__HEBEI_TOKEN__": os.environ.get("HEBEI_TOKEN", ""),
-    "__HEBEI_ROOM_ID__": os.environ.get("HEBEI_ROOM_ID", ""),
+    "__SERVER_ALIAS_LIST__": os.environ.get("SERVER_ALIAS_LIST", ""),
+    "__SERVER_URL_LIST__": os.environ.get("SERVER_URL_LIST", ""),
+    "__SERVER_TOKEN__": os.environ.get("SERVER_TOKEN", ""),
+    "__LIVE_NAME_LIST__": os.environ.get("LIVE_NAME_LIST", ""),
     "__WECHAT_WEBHOOK_KEY__": os.environ.get("WECHAT_WEBHOOK_KEY", ""),
 }
 
@@ -197,7 +168,7 @@ wrangler deploy
 ```
 
 3. 手动触发或接入路由：部署后访问 `https://<worker>.<your-subdomain>.workers.dev/refresh` 即可手动执行。若配置了 `crons`，Worker 会按计划自动执行。
-   - **必须先配置变量**：部署前先用上面的占位符替换脚本（或改用 `wrangler deploy --var ...`、Cloudflare Dashboard「Settings → Variables」或 GitHub Actions Secrets）把 `EAST_*` / `WEST_*` / `HEBEI_*` 与 `WECHAT_WEBHOOK_KEY` 注入，否则 Worker 会提示「未配置服务端」。
+   - **必须先配置变量**：部署前先用上面的占位符替换脚本（或改用 `wrangler deploy --var ...`、Cloudflare Dashboard「Settings → Variables」或 GitHub Actions Secrets）把 `SERVER_ALIAS_LIST` / `SERVER_URL_LIST` / `SERVER_TOKEN`/ `LIVE_NAME_LIST` 与 `WECHAT_WEBHOOK_KEY` 注入，否则 Worker 会提示「未配置服务端」。
    - **快速联调（无需等待正式变量）**：访问 `.../refresh?east_url=...&east_token=...&east_room_id=...&wechat_webhook_key=...` 可临时传入测试值。仅用于验证逻辑，正式部署仍建议通过变量注入。
 
 #### 如何提前验证定时任务
@@ -221,15 +192,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run worker logic
         env:
-          EAST_URL: ${{ secrets.EAST_URL }}
-          EAST_TOKEN: ${{ secrets.EAST_TOKEN }}
-          EAST_ROOM_ID: ${{ secrets.EAST_ROOM_ID }}
-          WEST_URL: ${{ secrets.WEST_URL }}
-          WEST_TOKEN: ${{ secrets.WEST_TOKEN }}
-          WEST_ROOM_ID: ${{ secrets.WEST_ROOM_ID }}
-          HEBEI_URL: ${{ secrets.HEBEI_URL }}
-          HEBEI_TOKEN: ${{ secrets.HEBEI_TOKEN }}
-          HEBEI_ROOM_ID: ${{ secrets.HEBEI_ROOM_ID }}
+          SERVER_ALIAS_LIST: ${{ secrets.SERVER_ALIAS_LIST }}
+          SERVER_URL_LIST: ${{ secrets.SERVER_URL_LIST }}
+          SERVER_TOKEN: ${{ secrets.SERVER_TOKEN }}
+          LIVE_NAME_LIST: ${{ secrets.LIVE_NAME_LIST }}
           WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
         run: |
           node worker/cf_worker.js
@@ -245,7 +211,7 @@ jobs:
 1. 在仓库 Secrets 中新增以下凭据（Settings → Secrets and variables → Actions）：
    - `CLOUDFLARE_API_TOKEN`：具备 `Workers Scripts`、`Workers KV Storage`（如需）等权限
    - `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 账户 ID
-   - `EAST_URL`、`EAST_TOKEN`、`EAST_ROOM_ID`、`WEST_URL`、`WEST_TOKEN`、`WEST_ROOM_ID`、`HEBEI_URL`、`HEBEI_TOKEN`、`HEBEI_ROOM_ID`、`WECHAT_WEBHOOK_KEY`
+   - `SERVER_ALIAS_LIST`、`SERVER_URL_LIST`、`SERVER_TOKEN`、`LIVE_NAME_LIST`、`WECHAT_WEBHOOK_KEY`
 2. 进入 GitHub Actions → `Deploy Cloudflare Worker` → `Run workflow` 手动触发。
 3. 工作流会先将 `worker/wrangler.toml` 中的占位符替换为 Secrets，再执行部署，避免 `key=value` 被误识别为变量名。
 
