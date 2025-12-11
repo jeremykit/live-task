@@ -1,186 +1,224 @@
 #!/usr/bin/env python3
 """
 Live Room Code Refresh Script
-自动刷新直播间验证码并推送到企业微信
+自动获取直播间列表，按名称过滤后刷新验证码，并汇总推送到企业微信。
 """
 
-import os
-import json
-import requests
-from typing import List, Dict, Optional
 from dataclasses import dataclass
+from typing import Dict, List
+import os
+import requests
+
+
+LIVE_LIST_PAYLOAD = {
+    "pageInfo": {"orderBy": "", "pageNum": 1, "pageSize": 1000, "total": 100, "pages": 10},
+    "param": {},
+}
 
 
 @dataclass
 class ServerConfig:
-    """服务器配置"""
     alias: str
     url: str
-    token: str
-    room_id: str
+
+
+@dataclass
+class LiveRoomResult:
+    name: str
+    code: str
+    success: bool
+    message: str = ""
 
 
 class LiveCodeRefresher:
-    """直播间验证码刷新器"""
+    """按服务器批量刷新直播间验证码，并聚合推送"""
 
-    def __init__(self, servers: List[ServerConfig], webhook_key: str):
+    def __init__(self, servers: List[ServerConfig], token: str, live_names: List[str], webhook_key: str):
         self.servers = servers
+        self.token = token
+        self.live_names = live_names
         self.webhook_url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={webhook_key}"
+        self.session = requests.Session()
 
-    def refresh_code(self, server: ServerConfig) -> Optional[Dict]:
-        """
-        刷新单个服务器的验证码
+    # ----------------- 请求封装 -----------------
+    def _headers(self) -> Dict[str, str]:
+        return {"Content-Type": "application/json", "Token": self.token}
 
-        Args:
-            server: 服务器配置
+    def fetch_live_list(self, server: ServerConfig) -> List[Dict]:
+        endpoint = f"https://{server.url}/api/live/liveList"
+        response = self.session.post(endpoint, json=LIVE_LIST_PAYLOAD, headers=self._headers(), timeout=15)
+        response.raise_for_status()
+        data = response.json()
 
-        Returns:
-            成功返回响应数据，失败返回 None
-        """
-        url = f"https://{server.url}/api/live/refreshVerifyCode"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {server.token}"
-        }
-        payload = {"param": server.room_id}
+        if not data.get("meta", {}).get("success"):
+            raise ValueError(data.get("meta", {}).get("message", "获取直播列表失败"))
+
+        live_list = data.get("data", [])
+        if not isinstance(live_list, list):
+            raise ValueError("直播列表数据格式异常")
+        return live_list
+
+    def refresh_room_code(self, server: ServerConfig, live_id: str) -> LiveRoomResult:
+        endpoint = f"https://{server.url}/api/live/refreshVerifyCode"
+        response = self.session.post(endpoint, json={"param": live_id}, headers=self._headers(), timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        success = bool(data.get("meta", {}).get("success"))
+        code = data.get("data", {}).get("code") or data.get("meta", {}).get("message", "刷新失败")
+        return LiveRoomResult(name="", code=str(code), success=success, message="" if success else str(code))
+
+    # ----------------- 业务逻辑 -----------------
+    def filter_live_rooms(self, live_list: List[Dict]) -> List[Dict]:
+        targets = [name for name in self.live_names if name]
+        matched = []
+        for room in live_list:
+            room_name = str(room.get("name", ""))
+            if not room_name:
+                continue
+            if any(target in room_name for target in targets):
+                matched.append(room)
+        return matched
+
+    def refresh_server(self, server: ServerConfig) -> Dict:
+        print(f"正在处理服务器 [{server.alias}] ...")
+        result: Dict = {"alias": server.alias, "rooms": [], "success": False, "error": None}
 
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            live_list = self.fetch_live_list(server)
+        except Exception as exc:  # noqa: BLE001 - 需要捕获所有异常用于反馈
+            result["error"] = f"获取直播列表失败：{exc}"
+            print(f"[{server.alias}] {result['error']}")
+            return result
 
-            if data.get("meta", {}).get("success"):
-                return {
-                    "alias": server.alias,
-                    "code": data.get("data", {}).get("code", "N/A"),
-                    "success": True
-                }
-            else:
-                message = data.get("meta", {}).get("message", "刷新失败")
-                print(f"[{server.alias}] 刷新失败: {message}")
-                return {
-                    "alias": server.alias,
-                    "code": message,
-                    "success": False
-                }
-        except Exception as e:
-            print(f"[{server.alias}] 请求异常: {str(e)}")
-            return {
-                "alias": server.alias,
-                "code": str(e),
-                "success": False
-            }
+        matched_rooms = self.filter_live_rooms(live_list)
+        if not matched_rooms:
+            result["error"] = "未匹配到任何需要刷码的直播间"
+            print(f"[{server.alias}] {result['error']}")
+            return result
+
+        for room in matched_rooms:
+            live_id = room.get("id")
+            room_name = room.get("name", "未命名直播间")
+
+            if not live_id:
+                msg = "缺少直播间 ID，无法刷码"
+                result["rooms"].append(LiveRoomResult(name=room_name, code=msg, success=False, message=msg))
+                continue
+
+            try:
+                refresh_result = self.refresh_room_code(server, str(live_id))
+                refresh_result.name = room_name
+                result["rooms"].append(refresh_result)
+                status = "成功" if refresh_result.success else f"失败：{refresh_result.message}"
+                print(f"[{server.alias}] {room_name} 刷码{status}")
+            except Exception as exc:  # noqa: BLE001
+                message = f"刷码异常：{exc}"
+                print(f"[{server.alias}] {room_name} {message}")
+                result["rooms"].append(LiveRoomResult(name=room_name, code=message, success=False, message=message))
+
+        result["success"] = bool(result["rooms"]) and all(room.success for room in result["rooms"])
+        return result
 
     def refresh_all(self) -> List[Dict]:
-        """
-        刷新所有服务器的验证码
+        return [self.refresh_server(server) for server in self.servers]
 
-        Returns:
-            所有服务器的刷新结果列表
-        """
-        results = []
-        for server in self.servers:
-            print(f"正在刷新 [{server.alias}] ...")
-            result = self.refresh_code(server)
-            if result:
-                results.append(result)
-        return results
+    # ----------------- 推送 -----------------
+    def build_message(self, server_result: Dict) -> str:
+        alias = server_result.get("alias", "unknown")
 
-    def send_notification(self, result: Dict) -> bool:
-        """按服务器分别发送文本通知到企业微信"""
-        alias = result.get("alias", "unknown")
-        code = result.get("code", "N/A")
-        success = result.get("success", False)
-        status = "刷码成功" if success else "刷码失败"
-        details = f"验证码：{code}" if success else f"原因：{code}"
+        if server_result.get("error"):
+            return f"【{alias}】刷码失败\n原因：{server_result['error']}"
 
-        payload = {
-            "msgtype": "text",
-            "text": {
-                "content": f"[{alias}]{status} {details}"
-            }
-        }
+        all_success = server_result.get("success", False)
+        header = "刷码成功" if all_success else "刷码完成（部分失败）"
+        lines = [f"【{alias}】{header}"]
+
+        rooms: List[LiveRoomResult] = server_result.get("rooms", [])
+        if not rooms:
+            lines.append("未匹配到需要刷码的直播间")
+        else:
+            for room in rooms:
+                if room.success:
+                    lines.append(f"{room.name}:{room.code}")
+                else:
+                    lines.append(f"{room.name} 刷码失败：{room.message}")
+
+        return "\n".join(lines)
+
+    def send_notification(self, server_result: Dict) -> bool:
+        payload = {"msgtype": "text", "text": {"content": self.build_message(server_result)}}
 
         try:
-            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            response = self.session.post(self.webhook_url, json=payload, timeout=10)
             response.raise_for_status()
             result = response.json()
 
             if result.get("errcode") == 0:
-                print(f"[{alias}] 通知发送成功！")
+                print(f"[{server_result.get('alias', 'unknown')}] 通知发送成功")
                 return True
-            else:
-                print(f"[{alias}] 通知发送失败: {result.get('errmsg', 'Unknown error')}")
-                return False
-        except Exception as e:
-            print(f"[{alias}] 发送通知异常: {str(e)}")
-            return False
+            print(f"[{server_result.get('alias', 'unknown')}] 通知发送失败: {result.get('errmsg', '未知错误')}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[{server_result.get('alias', 'unknown')}] 发送通知异常: {exc}")
 
-    def run(self):
-        """执行完整的刷新流程"""
-        print("=" * 50)
+        return False
+
+    def run(self) -> None:
+        print("=" * 60)
         print("开始刷新直播间验证码...")
-        print("=" * 50)
+        print("=" * 60)
 
         results = self.refresh_all()
-
         if not results:
-            print("没有获取到任何结果")
+            print("没有可刷新的服务器")
             return
 
-        print("\n" + "=" * 50)
-        print("刷新完成，发送通知...")
-        print("=" * 50)
+        print("\n" + "=" * 60)
+        print("刷新完成，开始推送...")
+        print("=" * 60)
+
         for result in results:
             self.send_notification(result)
 
 
-def load_config_from_env() -> tuple[List[ServerConfig], str]:
-    """
-    从环境变量加载配置
+def _parse_list(env_key: str) -> List[str]:
+    raw = os.getenv(env_key, "")
+    items = [item.strip() for item in raw.split(",") if item.strip()]
+    if not items:
+        raise ValueError(f"{env_key} 未配置")
+    return items
 
-    Returns:
-        (服务器配置列表, webhook key)
-    """
-    servers = []
 
-    # 加载三个服务器配置
-    for alias in ["EAST", "WEST", "HEBEI"]:
-        url = os.getenv(f"{alias}_URL")
-        token = os.getenv(f"{alias}_TOKEN")
-        room_id = os.getenv(f"{alias}_ROOM_ID")
+def load_config_from_env() -> tuple[List[ServerConfig], str, List[str], str]:
+    """从环境变量读取配置"""
 
-        if url and token and room_id:
-            servers.append(ServerConfig(
-                alias=alias.lower(),
-                url=url,
-                token=token,
-                room_id=room_id
-            ))
-        else:
-            print(f"警告: {alias} 配置不完整，已跳过")
+    aliases = _parse_list("SERVER_ALIAS_LIST")
+    urls = _parse_list("SERVER_URL_LIST")
+    if len(aliases) != len(urls):
+        raise ValueError("SERVER_ALIAS_LIST 与 SERVER_URL_LIST 数量不一致")
 
-    # 加载企业微信 webhook key
-    webhook_key = os.getenv("WECHAT_WEBHOOK_KEY", "")
+    servers = [ServerConfig(alias=alias.lower(), url=url) for alias, url in zip(aliases, urls)]
 
+    live_names = _parse_list("LIVE_NAME_LIST")
+    token = os.getenv("SERVER_TOKEN", "").strip()
+    if not token:
+        raise ValueError("SERVER_TOKEN 未配置")
+
+    webhook_key = os.getenv("WECHAT_WEBHOOK_KEY", "").strip()
     if not webhook_key:
-        raise ValueError("WECHAT_WEBHOOK_KEY 环境变量未设置")
+        raise ValueError("WECHAT_WEBHOOK_KEY 未配置")
 
-    if not servers:
-        raise ValueError("没有配置任何服务器")
-
-    return servers, webhook_key
+    return servers, token, live_names, webhook_key
 
 
-def main():
-    """主函数"""
+def main() -> None:
     try:
-        servers, webhook_key = load_config_from_env()
-        refresher = LiveCodeRefresher(servers, webhook_key)
+        servers, token, live_names, webhook_key = load_config_from_env()
+        refresher = LiveCodeRefresher(servers, token, live_names, webhook_key)
         refresher.run()
-    except Exception as e:
-        print(f"程序执行失败: {str(e)}")
-        exit(1)
+    except Exception as exc:  # noqa: BLE001
+        print(f"程序执行失败: {exc}")
+        raise
 
 
 if __name__ == "__main__":
