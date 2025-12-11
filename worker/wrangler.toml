@@ -3,7 +3,7 @@ main = "cf_worker.js"
 compatibility_date = "2024-01-01"
 # 默认启用每周五中午 12:00（UTC+8，对应 UTC 04:00）的定时触发
 [triggers]
-crons = ["0 4 * * 5"]
+crons = ["0 4 * * 6"]
 
 [vars]
 # 通过 GitHub Actions / wrangler 部署时会将以下占位符替换为真实值
