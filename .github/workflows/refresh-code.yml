@@ -24,14 +24,9 @@ jobs:
 
     - name: Run refresh script
       env:
-        EAST_URL: ${{ secrets.EAST_URL }}
-        EAST_TOKEN: ${{ secrets.EAST_TOKEN }}
-        EAST_ROOM_ID: ${{ secrets.EAST_ROOM_ID }}
-        WEST_URL: ${{ secrets.WEST_URL }}
-        WEST_TOKEN: ${{ secrets.WEST_TOKEN }}
-        WEST_ROOM_ID: ${{ secrets.WEST_ROOM_ID }}
-        HEBEI_URL: ${{ secrets.HEBEI_URL }}
-        HEBEI_TOKEN: ${{ secrets.HEBEI_TOKEN }}
-        HEBEI_ROOM_ID: ${{ secrets.HEBEI_ROOM_ID }}
+        SERVER_ALIAS_LIST: ${{ secrets.SERVER_ALIAS_LIST }}
+        SERVER_URL_LIST: ${{ secrets.SERVER_URL_LIST }}
+        SERVER_TOKEN: ${{ secrets.SERVER_TOKEN }}
+        LIVE_NAME_LIST: ${{ secrets.LIVE_NAME_LIST }}
         WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
       run: uv run python refresh_code.py

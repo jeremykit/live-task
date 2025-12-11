@@ -21,15 +21,10 @@ jobs:
       - name: Inject secrets into wrangler.toml
         working-directory: worker
         env:
-          EAST_URL: ${{ secrets.EAST_URL }}
-          EAST_TOKEN: ${{ secrets.EAST_TOKEN }}
-          EAST_ROOM_ID: ${{ secrets.EAST_ROOM_ID }}
-          WEST_URL: ${{ secrets.WEST_URL }}
-          WEST_TOKEN: ${{ secrets.WEST_TOKEN }}
-          WEST_ROOM_ID: ${{ secrets.WEST_ROOM_ID }}
-          HEBEI_URL: ${{ secrets.HEBEI_URL }}
-          HEBEI_TOKEN: ${{ secrets.HEBEI_TOKEN }}
-          HEBEI_ROOM_ID: ${{ secrets.HEBEI_ROOM_ID }}
+          SERVER_ALIAS_LIST: ${{ secrets.SERVER_ALIAS_LIST }}
+          SERVER_URL_LIST: ${{ secrets.SERVER_URL_LIST }}
+          SERVER_TOKEN: ${{ secrets.SERVER_TOKEN }}
+          LIVE_NAME_LIST: ${{ secrets.LIVE_NAME_LIST }}
           WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
         run: |
           python - <<'PY'
@@ -39,15 +34,10 @@ jobs:
           path = Path("wrangler.toml")
           data = path.read_text()
           replacements = {
-              "__EAST_URL__": os.environ.get("EAST_URL", ""),
-              "__EAST_TOKEN__": os.environ.get("EAST_TOKEN", ""),
-              "__EAST_ROOM_ID__": os.environ.get("EAST_ROOM_ID", ""),
-              "__WEST_URL__": os.environ.get("WEST_URL", ""),
-              "__WEST_TOKEN__": os.environ.get("WEST_TOKEN", ""),
-              "__WEST_ROOM_ID__": os.environ.get("WEST_ROOM_ID", ""),
-              "__HEBEI_URL__": os.environ.get("HEBEI_URL", ""),
-              "__HEBEI_TOKEN__": os.environ.get("HEBEI_TOKEN", ""),
-              "__HEBEI_ROOM_ID__": os.environ.get("HEBEI_ROOM_ID", ""),
+              "__SERVER_ALIAS_LIST__": os.environ.get("SERVER_ALIAS_LIST", ""),
+              "__SERVER_URL_LIST__": os.environ.get("SERVER_URL_LIST", ""),
+              "__SERVER_TOKEN__": os.environ.get("SERVER_TOKEN", ""),
+              "__LIVE_NAME_LIST__": os.environ.get("LIVE_NAME_LIST", ""),
               "__WECHAT_WEBHOOK_KEY__": os.environ.get("WECHAT_WEBHOOK_KEY", ""),
           }
 

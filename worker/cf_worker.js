@@ -1,83 +1,71 @@
 /**
  * Cloudflare Worker version of the live room code refresher.
- *
- * Supports both Cloudflare Workers (fetch/scheduled handlers) and Node.js/GitHub Actions
- * so you can try the same logic in different environments.
+ * - 获取直播列表 -> 按名称匹配 -> 刷新验证码 -> 汇总推送到企业微信
+ * - 同步 Python 版逻辑，使用统一 token 和名称过滤
  */
 
+const LIVE_LIST_PAYLOAD = {
+  pageInfo: { orderBy: "", pageNum: 1, pageSize: 1000, total: 100, pages: 10 },
+  param: {},
+};
+
 /**
- * Helper to read environment variables from Cloudflare Worker `env`,
- * optional ad-hoc overrides (querystring), or Node.js `process.env`.
- * @param {Record<string, string | undefined>} env
- * @param {Record<string, string | undefined>} overrides
- * @param {string} key
+ * 读取环境变量（优先 overrides -> env -> process.env）
  */
 function getEnv(env, overrides, key) {
   if (overrides && overrides[key]) return overrides[key];
   if (env && env[key]) return env[key];
-  const hasProcess = typeof process !== "undefined" && typeof process.env !== "undefined";
-  if (hasProcess && process.env[key]) return process.env[key];
+  if (typeof process !== "undefined" && process.env && process.env[key]) return process.env[key];
   return undefined;
 }
 
-function loadServers(env, overrides = {}) {
-  const aliases = ["EAST", "WEST", "HEBEI"];
-  const servers = [];
-
-  for (const alias of aliases) {
-    const url = getEnv(env, overrides, `${alias}_URL`);
-    const token = getEnv(env, overrides, `${alias}_TOKEN`);
-    const roomId = getEnv(env, overrides, `${alias}_ROOM_ID`);
-
-    if (url && token && roomId) {
-      servers.push({
-        alias: alias.toLowerCase(),
-        url,
-        token,
-        roomId,
-      });
-    }
-  }
-
-  if (!servers.length) {
-    throw new Error(
-      "No servers configured via environment variables or query overrides (e.g. ?east_url=...&east_token=...&east_room_id=...)"
-    );
-  }
-
-  return servers;
+function parseList(value) {
+  return (value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
-async function refreshServer(server) {
-  const endpoint = `https://${server.url}/api/live/refreshVerifyCode`;
-  const payload = { param: server.roomId };
+function loadConfig(env, overrides = {}) {
+  const aliasList = parseList(getEnv(env, overrides, "SERVER_ALIAS_LIST"));
+  const urlList = parseList(getEnv(env, overrides, "SERVER_URL_LIST"));
+  const liveNames = parseList(getEnv(env, overrides, "LIVE_NAME_LIST"));
+  const token = (getEnv(env, overrides, "SERVER_TOKEN") || "").trim();
+  const webhookKey = (getEnv(env, overrides, "WECHAT_WEBHOOK_KEY") || "").trim();
 
+  if (!aliasList.length) throw new Error("SERVER_ALIAS_LIST 未配置");
+  if (!urlList.length) throw new Error("SERVER_URL_LIST 未配置");
+  if (aliasList.length !== urlList.length) throw new Error("SERVER_ALIAS_LIST 与 SERVER_URL_LIST 数量不一致");
+  if (!liveNames.length) throw new Error("LIVE_NAME_LIST 未配置");
+  if (!token) throw new Error("SERVER_TOKEN 未配置");
+  if (!webhookKey) throw new Error("WECHAT_WEBHOOK_KEY 未配置");
+
+  const servers = aliasList.map((alias, idx) => ({ alias: alias.toLowerCase(), url: urlList[idx] }));
+  return { servers, liveNames, token, webhookKey };
+}
+
+function parseOverridesFromUrl(url) {
+  const params = new URL(url).searchParams;
+  const map = {};
+  const mapIf = (key, param) => {
+    const value = params.get(param);
+    if (value) map[key] = value;
+  };
+
+  mapIf("SERVER_ALIAS_LIST", "server_alias_list");
+  mapIf("SERVER_URL_LIST", "server_url_list");
+  mapIf("LIVE_NAME_LIST", "live_name_list");
+  mapIf("SERVER_TOKEN", "server_token");
+  mapIf("WECHAT_WEBHOOK_KEY", "wechat_webhook_key");
+
+  return map;
+}
+
+async function safeJson(response) {
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${server.token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const message = await safeError(response);
-      return { alias: server.alias, code: message, success: false };
-    }
-
-    const data = await response.json();
-    const success = Boolean(data?.meta?.success);
-    const code = data?.data?.code ?? "N/A";
-
-    return {
-      alias: server.alias,
-      code: success ? code : data?.meta?.message ?? "刷新失败",
-      success,
-    };
-  } catch (error) {
-    return { alias: server.alias, code: error?.message ?? "请求异常", success: false };
+    return await response.json();
+  } catch (_) {
+    return null;
   }
 }
 
@@ -90,83 +78,150 @@ async function safeError(response) {
   }
 }
 
-function parseOverridesFromUrl(url) {
-  const params = new URL(url).searchParams;
-  const map = {};
-
-  const aliases = ["east", "west", "hebei"];
-  for (const alias of aliases) {
-    const upper = alias.toUpperCase();
-    const url = params.get(`${alias}_url`);
-    const token = params.get(`${alias}_token`);
-    const roomId = params.get(`${alias}_room_id`);
-
-    if (url) map[`${upper}_URL`] = url;
-    if (token) map[`${upper}_TOKEN`] = token;
-    if (roomId) map[`${upper}_ROOM_ID`] = roomId;
-  }
-
-  const webhook = params.get("wechat_webhook_key");
-  if (webhook) map.WECHAT_WEBHOOK_KEY = webhook;
-
-  return map;
+function buildHeaders(token) {
+  return { "Content-Type": "application/json", Token: token };
 }
 
-async function refreshAll(env, overrides) {
-  const servers = loadServers(env, overrides);
-  const results = [];
+async function fetchLiveList(server, token, fetcher) {
+  const endpoint = `https://${server.url}/api/live/liveList`;
+  const res = await fetcher(endpoint, {
+    method: "POST",
+    headers: buildHeaders(token),
+    body: JSON.stringify(LIVE_LIST_PAYLOAD),
+  });
+  if (!res.ok) throw new Error(await safeError(res));
 
-  for (const server of servers) {
-    const result = await refreshServer(server);
-    results.push(result);
-  }
+  const data = await res.json();
+  if (!data?.meta?.success) throw new Error(data?.meta?.message || "获取直播列表失败");
 
-  return results;
+  if (!Array.isArray(data.data)) throw new Error("直播列表数据格式异常");
+  return data.data;
 }
 
-function buildWebhookUrl(env, overrides) {
-  const key = getEnv(env, overrides, "WECHAT_WEBHOOK_KEY");
-  if (!key) {
-    throw new Error("WECHAT_WEBHOOK_KEY is missing");
-  }
-  return `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${key}`;
+async function refreshRoomCode(server, token, liveId, fetcher) {
+  const endpoint = `https://${server.url}/api/live/refreshVerifyCode`;
+  const res = await fetcher(endpoint, {
+    method: "POST",
+    headers: buildHeaders(token),
+    body: JSON.stringify({ param: String(liveId) }),
+  });
+  if (!res.ok) throw new Error(await safeError(res));
+
+  const data = await safeJson(res);
+  const success = Boolean(data?.meta?.success);
+  const code = data?.data?.code ?? data?.meta?.message ?? "刷新失败";
+  return { code: String(code), success, message: success ? "" : String(code) };
 }
 
-async function sendNotification(env, overrides, result) {
-  const webhook = buildWebhookUrl(env, overrides);
-  const statusText = result.success ? "刷码成功" : "刷码失败";
-  const prefix = `[${result.alias}]`;
-  const details = result.success ? `验证码：${result.code}` : `原因：${result.code}`;
+function filterLiveRooms(liveList, liveNames) {
+  const targets = liveNames.filter(Boolean);
+  return liveList.filter((room) => {
+    const name = String(room?.name || "");
+    return name && targets.some((target) => name.includes(target));
+  });
+}
 
-  const payload = {
-    msgtype: "text",
-    text: {
-      content: `${prefix}${statusText} ${details}`,
-    },
-  };
+async function refreshServer(server, token, liveNames, fetcher) {
+  const result = { alias: server.alias, rooms: [], success: false, error: null };
 
-  const response = await fetch(webhook, {
+  let liveList;
+  try {
+    liveList = await fetchLiveList(server, token, fetcher);
+  } catch (err) {
+    result.error = `获取直播列表失败：${err.message || err}`;
+    return result;
+  }
+
+  const matched = filterLiveRooms(liveList, liveNames);
+  if (!matched.length) {
+    result.error = "未匹配到任何需要刷码的直播间";
+    return result;
+  }
+
+  for (const room of matched) {
+    const liveId = room?.id;
+    const name = room?.name || "未命名直播间";
+    if (!liveId) {
+      const message = "缺少直播间 ID，无法刷码";
+      result.rooms.push({ name, code: message, success: false, message });
+      continue;
+    }
+
+    try {
+      const refresh = await refreshRoomCode(server, token, liveId, fetcher);
+      result.rooms.push({ name, ...refresh });
+    } catch (err) {
+      const message = `刷码异常：${err.message || err}`;
+      result.rooms.push({ name, code: message, success: false, message });
+    }
+  }
+
+  result.success = result.rooms.length > 0 && result.rooms.every((room) => room.success);
+  return result;
+}
+
+function buildMessage(serverResult) {
+  const alias = serverResult.alias || "unknown";
+  if (serverResult.error) {
+    return `【${alias}】刷码失败\n原因：${serverResult.error}`;
+  }
+
+  const header = serverResult.success ? "刷码成功" : "刷码完成（部分失败）";
+  const lines = [`【${alias}】${header}`];
+
+  const rooms = serverResult.rooms || [];
+  if (!rooms.length) {
+    lines.push("未匹配到需要刷码的直播间");
+  } else {
+    for (const room of rooms) {
+      if (room.success) {
+        lines.push(`${room.name}:${room.code}`);
+      } else {
+        lines.push(`${room.name} 刷码失败：${room.message}`);
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
+async function sendNotification(webhookKey, serverResult, fetcher) {
+  const webhook = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${webhookKey}`;
+  const payload = { msgtype: "text", text: { content: buildMessage(serverResult) } };
+
+  const res = await fetcher(webhook, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    const message = await safeError(response);
-    throw new Error(`Failed to send notification: ${message}`);
-  }
+  if (!res.ok) throw new Error(await safeError(res));
 
-  const body = await response.json();
-  if (body?.errcode !== 0) {
-    throw new Error(`WeChat webhook error: ${body?.errmsg ?? "unknown error"}`);
-  }
+  const data = await safeJson(res);
+  if (data?.errcode !== 0) throw new Error(data?.errmsg || "企业微信返回错误");
 }
 
-async function run(env, overrides = {}) {
-  const results = await refreshAll(env, overrides);
-  for (const result of results) {
-    await sendNotification(env, overrides, result);
+async function refreshAll(servers, token, liveNames, fetcher) {
+  const results = [];
+  for (const server of servers) {
+    const result = await refreshServer(server, token, liveNames, fetcher);
+    results.push(result);
   }
+  return results;
+}
+
+async function run(env, overrides = {}, fetcher = fetch) {
+  const { servers, liveNames, token, webhookKey } = loadConfig(env, overrides);
+  const results = await refreshAll(servers, token, liveNames, fetcher);
+
+  for (const result of results) {
+    try {
+      await sendNotification(webhookKey, result, fetcher);
+    } catch (err) {
+      console.error(`[${result.alias}] 通知发送失败:`, err);
+    }
+  }
+
   return { results };
 }
 
@@ -179,7 +234,7 @@ async function handleRequest(request, env) {
       headers: { "content-type": "application/json" },
     });
   } catch (error) {
-    const message = error?.message ?? "unknown error";
+    const message = error?.message || "unknown error";
     return new Response(JSON.stringify({ ok: false, error: message }), {
       status: 500,
       headers: { "content-type": "application/json" },
@@ -188,20 +243,11 @@ async function handleRequest(request, env) {
 }
 
 export default {
-  /**
-   * HTTP trigger: useful for manual testing or when exposing the worker via a route.
-   */
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname !== "/refresh") {
-      return new Response("Not Found", { status: 404 });
-    }
+    if (url.pathname !== "/refresh") return new Response("Not Found", { status: 404 });
     return handleRequest(request, env);
   },
-
-  /**
-   * CRON trigger: configure in wrangler.toml with `crons = ["0 4 * * 5"]` etc.
-   */
   async scheduled(event, env, ctx) {
     ctx.waitUntil(run(env));
   },
