@@ -71,14 +71,15 @@ class LiveCodeRefresher:
     # ----------------- 业务逻辑 -----------------
     def filter_live_rooms(self, live_list: List[Dict]) -> List[Dict]:
         targets = [name for name in self.live_names if name]
-        matched = []
-        for room in live_list:
-            room_name = str(room.get("name", ""))
-            if not room_name:
-                continue
-            if any(target in room_name for target in targets):
-                matched.append(room)
-        return matched
+        # 按 live_names 的顺序返回匹配的直播间
+        result = []
+        for target in targets:
+            for room in live_list:
+                room_name = str(room.get("name", ""))
+                if room_name and target in room_name:
+                    result.append(room)
+                    break
+        return result
 
     def refresh_server(self, server: ServerConfig) -> Dict:
         print(f"正在处理服务器 [{server.alias}] ...")
@@ -197,7 +198,7 @@ def load_config_from_env() -> tuple[List[ServerConfig], str, List[str], str]:
     if len(aliases) != len(urls):
         raise ValueError("SERVER_ALIAS_LIST 与 SERVER_URL_LIST 数量不一致")
 
-    servers = [ServerConfig(alias=alias.lower(), url=url) for alias, url in zip(aliases, urls)]
+    servers = [ServerConfig(alias=alias, url=url) for alias, url in zip(aliases, urls)]
 
     live_names = _parse_list("LIVE_NAME_LIST")
     token = os.getenv("SERVER_TOKEN", "").strip()
