@@ -40,7 +40,7 @@ function loadConfig(env, overrides = {}) {
   if (!token) throw new Error("SERVER_TOKEN 未配置");
   if (!webhookKey) throw new Error("WECHAT_WEBHOOK_KEY 未配置");
 
-  const servers = aliasList.map((alias, idx) => ({ alias: alias.toLowerCase(), url: urlList[idx] }));
+  const servers = aliasList.map((alias, idx) => ({ alias: alias, url: urlList[idx] }));
   return { servers, liveNames, token, webhookKey };
 }
 
@@ -115,10 +115,18 @@ async function refreshRoomCode(server, token, liveId, fetcher) {
 
 function filterLiveRooms(liveList, liveNames) {
   const targets = liveNames.filter(Boolean);
-  return liveList.filter((room) => {
-    const name = String(room?.name || "");
-    return name && targets.some((target) => name.includes(target));
-  });
+  // 按 liveNames 的顺序返回匹配的直播间
+  const result = [];
+  for (const target of targets) {
+    const matched = liveList.find((room) => {
+      const name = String(room?.name || "");
+      return name && name.includes(target);
+    });
+    if (matched) {
+      result.push(matched);
+    }
+  }
+  return result;
 }
 
 async function refreshServer(server, token, liveNames, fetcher) {
