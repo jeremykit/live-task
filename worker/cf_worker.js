@@ -113,17 +113,49 @@ async function refreshRoomCode(server, token, liveId, fetcher) {
   return { code: String(code), success, message: success ? "" : String(code) };
 }
 
+async function refreshMultiRoomCode(server, token, liveIds, fetcher) {
+  const endpoint = `https://${server.url}/api/live/refreshLivesVerifyCode`;
+  const res = await fetcher(endpoint, {
+    method: "POST",
+    headers: buildHeaders(token),
+    body: JSON.stringify({ param: liveIds.join(",") }),
+  });
+  if (!res.ok) throw new Error(await safeError(res));
+
+  const data = await safeJson(res);
+  const success = Boolean(data?.meta?.success);
+  const code = data?.data?.code ?? data?.meta?.message ?? "刷新失败";
+  return { code: String(code), success, message: success ? "" : String(code) };
+}
+
+/**
+ * 解析 liveNames，支持 | 分隔的多房间组
+ * 例如 ["五会", "6约1|6约2", "6约3"] -> [["五会"], ["6约1", "6约2"], ["6约3"]]
+ */
+function parseLiveNameGroups(liveNames) {
+  return liveNames.filter(Boolean).map((item) => item.split("|").map((n) => n.trim()).filter(Boolean));
+}
+
+/**
+ * 根据名称组匹配直播间，返回分组结构
+ * 每组包含 { names: string[], rooms: Room[] }
+ */
 function filterLiveRooms(liveList, liveNames) {
-  const targets = liveNames.filter(Boolean);
-  // 按 liveNames 的顺序返回匹配的直播间
+  const groups = parseLiveNameGroups(liveNames);
   const result = [];
-  for (const target of targets) {
-    const matched = liveList.find((room) => {
-      const name = String(room?.name || "");
-      return name && name.includes(target);
-    });
-    if (matched) {
-      result.push(matched);
+  for (const nameGroup of groups) {
+    const rooms = [];
+    for (const target of nameGroup) {
+      const matched = liveList.find((room) => {
+        const name = String(room?.name || "");
+        return name && name.includes(target);
+      });
+      if (matched) {
+        rooms.push(matched);
+      }
+    }
+    if (rooms.length > 0) {
+      result.push({ names: nameGroup, rooms });
     }
   }
   return result;
@@ -146,21 +178,27 @@ async function refreshServer(server, token, liveNames, fetcher) {
     return result;
   }
 
-  for (const room of matched) {
-    const liveId = room?.id;
-    const name = room?.name || "未命名直播间";
-    if (!liveId) {
+  for (const group of matched) {
+    const displayName = group.names.join("|");
+    const liveIds = group.rooms.map((r) => r?.id).filter(Boolean);
+
+    if (!liveIds.length) {
       const message = "缺少直播间 ID，无法刷码";
-      result.rooms.push({ name, code: message, success: false, message });
+      result.rooms.push({ name: displayName, code: message, success: false, message });
       continue;
     }
 
     try {
-      const refresh = await refreshRoomCode(server, token, liveId, fetcher);
-      result.rooms.push({ name, ...refresh });
+      let refresh;
+      if (liveIds.length === 1) {
+        refresh = await refreshRoomCode(server, token, liveIds[0], fetcher);
+      } else {
+        refresh = await refreshMultiRoomCode(server, token, liveIds, fetcher);
+      }
+      result.rooms.push({ name: displayName, ...refresh });
     } catch (err) {
       const message = `刷码异常：${err.message || err}`;
-      result.rooms.push({ name, code: message, success: false, message });
+      result.rooms.push({ name: displayName, code: message, success: false, message });
     }
   }
 

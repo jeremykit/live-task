@@ -85,7 +85,31 @@ Token: ${token}
     "pageInfo": null
 }
 
-2.3、我需要将三个服务器请求的结果汇聚成一个信息，发到这个地址上
+2.3、刷新指定多个房间房间的直播校验码：
+liveIds:"1001,1002"
+（1）请求
+POST https://${url}/api/live/refreshLivesVerifyCode
+content-type:application/json
+Token: ${token}
+
+{"param":"${liveIds}"}
+
+（2）响应：
+{
+    "meta": {
+        "success": true,
+        "code": "0000",
+        "message": "成功",
+        "processingTime": null
+    },
+    "data": {
+        "ids": "1001,1002",     
+        "code": "7311"       
+    },
+    "pageInfo": null
+}
+
+2.4、我需要将三个服务器请求的结果汇聚成一个信息，发到这个地址上
 
 curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${sendKey}' \
    -H 'Content-Type: application/json' \

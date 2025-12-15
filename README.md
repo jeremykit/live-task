@@ -46,7 +46,7 @@ uv sync
 # 服务器配置
 export SERVER_ALIAS_LIST="east,west,hebei"
 export SERVER_URL_LIST="your-east-server.com,your-west-server.com,your-hebei-server.com"
-export LIVE_NAME_LIST="五会,6约,7日"
+export LIVE_NAME_LIST="五会,6约1|6约2,6约,7日"
 export SERVER_TOKEN="your-east-token"
 
 # 企业微信 Webhook Key

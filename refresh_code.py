@@ -68,17 +68,35 @@ class LiveCodeRefresher:
         code = data.get("data", {}).get("code") or data.get("meta", {}).get("message", "刷新失败")
         return LiveRoomResult(name="", code=str(code), success=success, message="" if success else str(code))
 
+    def refresh_multi_room_code(self, server: ServerConfig, live_ids: List[str]) -> LiveRoomResult:
+        endpoint = f"https://{server.url}/api/live/refreshLivesVerifyCode"
+        response = self.session.post(endpoint, json={"param": ",".join(live_ids)}, headers=self._headers(), timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        success = bool(data.get("meta", {}).get("success"))
+        code = data.get("data", {}).get("code") or data.get("meta", {}).get("message", "刷新失败")
+        return LiveRoomResult(name="", code=str(code), success=success, message="" if success else str(code))
+
     # ----------------- 业务逻辑 -----------------
+    def _parse_live_name_groups(self) -> List[List[str]]:
+        """解析 live_names，支持 | 分隔的多房间组"""
+        return [[n.strip() for n in item.split("|") if n.strip()] for item in self.live_names if item]
+
     def filter_live_rooms(self, live_list: List[Dict]) -> List[Dict]:
-        targets = [name for name in self.live_names if name]
-        # 按 live_names 的顺序返回匹配的直播间
+        """根据名称组匹配直播间，返回分组结构 [{"names": [...], "rooms": [...]}]"""
+        groups = self._parse_live_name_groups()
         result = []
-        for target in targets:
-            for room in live_list:
-                room_name = str(room.get("name", ""))
-                if room_name and target in room_name:
-                    result.append(room)
-                    break
+        for name_group in groups:
+            rooms = []
+            for target in name_group:
+                for room in live_list:
+                    room_name = str(room.get("name", ""))
+                    if room_name and target in room_name:
+                        rooms.append(room)
+                        break
+            if rooms:
+                result.append({"names": name_group, "rooms": rooms})
         return result
 
     def refresh_server(self, server: ServerConfig) -> Dict:
@@ -92,31 +110,34 @@ class LiveCodeRefresher:
             print(f"[{server.alias}] {result['error']}")
             return result
 
-        matched_rooms = self.filter_live_rooms(live_list)
-        if not matched_rooms:
+        matched_groups = self.filter_live_rooms(live_list)
+        if not matched_groups:
             result["error"] = "未匹配到任何需要刷码的直播间"
             print(f"[{server.alias}] {result['error']}")
             return result
 
-        for room in matched_rooms:
-            live_id = room.get("id")
-            room_name = room.get("name", "未命名直播间")
+        for group in matched_groups:
+            display_name = "|".join(group["names"])
+            live_ids = [str(room.get("id")) for room in group["rooms"] if room.get("id")]
 
-            if not live_id:
+            if not live_ids:
                 msg = "缺少直播间 ID，无法刷码"
-                result["rooms"].append(LiveRoomResult(name=room_name, code=msg, success=False, message=msg))
+                result["rooms"].append(LiveRoomResult(name=display_name, code=msg, success=False, message=msg))
                 continue
 
             try:
-                refresh_result = self.refresh_room_code(server, str(live_id))
-                refresh_result.name = room_name
+                if len(live_ids) == 1:
+                    refresh_result = self.refresh_room_code(server, live_ids[0])
+                else:
+                    refresh_result = self.refresh_multi_room_code(server, live_ids)
+                refresh_result.name = display_name
                 result["rooms"].append(refresh_result)
                 status = "成功" if refresh_result.success else f"失败：{refresh_result.message}"
-                print(f"[{server.alias}] {room_name} 刷码{status}")
+                print(f"[{server.alias}] {display_name} 刷码{status}")
             except Exception as exc:  # noqa: BLE001
                 message = f"刷码异常：{exc}"
-                print(f"[{server.alias}] {room_name} {message}")
-                result["rooms"].append(LiveRoomResult(name=room_name, code=message, success=False, message=message))
+                print(f"[{server.alias}] {display_name} {message}")
+                result["rooms"].append(LiveRoomResult(name=display_name, code=message, success=False, message=message))
 
         result["success"] = bool(result["rooms"]) and all(room.success for room in result["rooms"])
         return result
