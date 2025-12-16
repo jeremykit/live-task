@@ -69,13 +69,14 @@ class LiveCodeRefresher:
         return LiveRoomResult(name="", code=str(code), success=success, message="" if success else str(code))
 
     def refresh_multi_room_code(self, server: ServerConfig, live_ids: List[str]) -> LiveRoomResult:
-        endpoint = f"https://{server.url}/api/live/refreshLivesVerifyCode"
+        endpoint = f"https://{server.url}/api/live/batchRefVerifyCode"
         response = self.session.post(endpoint, json={"param": ",".join(live_ids)}, headers=self._headers(), timeout=15)
         response.raise_for_status()
         data = response.json()
 
         success = bool(data.get("meta", {}).get("success"))
-        code = data.get("data", {}).get("code") or data.get("meta", {}).get("message", "刷新失败")
+        # 响应格式: data 直接是验证码字符串，如 "3200"
+        code = data.get("data") or data.get("meta", {}).get("message", "刷新失败")
         return LiveRoomResult(name="", code=str(code), success=success, message="" if success else str(code))
 
     # ----------------- 业务逻辑 -----------------

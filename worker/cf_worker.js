@@ -114,7 +114,7 @@ async function refreshRoomCode(server, token, liveId, fetcher) {
 }
 
 async function refreshMultiRoomCode(server, token, liveIds, fetcher) {
-  const endpoint = `https://${server.url}/api/live/refreshLivesVerifyCode`;
+  const endpoint = `https://${server.url}/api/live/batchRefVerifyCode`;
   const res = await fetcher(endpoint, {
     method: "POST",
     headers: buildHeaders(token),
@@ -124,7 +124,8 @@ async function refreshMultiRoomCode(server, token, liveIds, fetcher) {
 
   const data = await safeJson(res);
   const success = Boolean(data?.meta?.success);
-  const code = data?.data?.code ?? data?.meta?.message ?? "刷新失败";
+  // 响应格式: data 直接是验证码字符串，如 "3200"
+  const code = data?.data ?? data?.meta?.message ?? "刷新失败";
   return { code: String(code), success, message: success ? "" : String(code) };
 }
 

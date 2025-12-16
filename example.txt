@@ -86,9 +86,9 @@ Token: ${token}
 }
 
 2.3、刷新指定多个房间房间的直播校验码：
-liveIds:"1001,1002"
+liveIds:"1656683563461,1712113285566"
 （1）请求
-POST https://${url}/api/live/refreshLivesVerifyCode
+POST https://${url}/api/live/batchRefVerifyCode
 content-type:application/json
 Token: ${token}
 
@@ -96,17 +96,14 @@ Token: ${token}
 
 （2）响应：
 {
-    "meta": {
-        "success": true,
-        "code": "0000",
-        "message": "成功",
-        "processingTime": null
-    },
-    "data": {
-        "ids": "1001,1002",     
-        "code": "7311"       
-    },
-    "pageInfo": null
+  "meta": {
+    "success": true,
+    "code": "0000",
+    "message": "成功",
+    "processingTime": null
+  },
+  "data": "3200",
+  "pageInfo": null
 }
 
 2.4、我需要将三个服务器请求的结果汇聚成一个信息，发到这个地址上
