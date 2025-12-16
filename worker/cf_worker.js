@@ -293,6 +293,24 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname !== "/refresh") return new Response("Not Found", { status: 404 });
+
+    // 处理 CORS 预检请求，避免重复执行
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+    }
+
+    // 只处理 GET 或 POST 请求
+    if (request.method !== "GET" && request.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405 });
+    }
+
     return handleRequest(request, env);
   },
   async scheduled(event, env, ctx) {
