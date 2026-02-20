@@ -33,9 +33,9 @@ class LiveRoomResult:
 class LiveCodeRefresher:
     """按服务器批量刷新直播间验证码，并聚合推送"""
 
-    def __init__(self, servers: List[ServerConfig], token: str, live_names: List[str], webhook_key: str):
+    def __init__(self, servers: List[ServerConfig], live_names: List[str], webhook_key: str):
         self.servers = servers
-        self.token = token
+        self.token = ""  # 通过 login 方法设置
         self.live_names = live_names
         self.webhook_url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={webhook_key}"
         self.session = requests.Session()
@@ -43,6 +43,22 @@ class LiveCodeRefresher:
     # ----------------- 请求封装 -----------------
     def _headers(self) -> Dict[str, str]:
         return {"Content-Type": "application/json", "Token": self.token}
+
+    def login(self, login_url: str, user_id: str, password: str) -> str:
+        """调用登录接口获取 token"""
+        endpoint = f"https://{login_url}/api/auth/loginAdmin"
+        payload = {"param": {"password": password, "userId": user_id}}
+        response = self.session.post(endpoint, json=payload, headers={"Content-Type": "application/json"}, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        if not data.get("meta", {}).get("success"):
+            raise ValueError(data.get("meta", {}).get("message", "登录失败"))
+
+        token = data.get("data", {}).get("token")
+        if not token:
+            raise ValueError("登录响应中未找到 token")
+        return token
 
     def fetch_live_list(self, server: ServerConfig) -> List[Dict]:
         endpoint = f"https://{server.url}/api/live/liveList"
@@ -212,7 +228,7 @@ def _parse_list(env_key: str) -> List[str]:
     return items
 
 
-def load_config_from_env() -> tuple[List[ServerConfig], str, List[str], str]:
+def load_config_from_env() -> tuple[List[ServerConfig], str, str, str, List[str], str]:
     """从环境变量读取配置"""
 
     aliases = _parse_list("SERVER_ALIAS_LIST")
@@ -223,23 +239,46 @@ def load_config_from_env() -> tuple[List[ServerConfig], str, List[str], str]:
     servers = [ServerConfig(alias=alias, url=url) for alias, url in zip(aliases, urls)]
 
     live_names = _parse_list("LIVE_NAME_LIST")
-    token = os.getenv("SERVER_TOKEN", "").strip()
-    if not token:
-        raise ValueError("SERVER_TOKEN 未配置")
+
+    login_url = os.getenv("LOGIN_SERVER_URL", "").strip()
+    if not login_url:
+        raise ValueError("LOGIN_SERVER_URL 未配置")
+
+    login_user_id = os.getenv("LOGIN_USER_ID", "").strip()
+    if not login_user_id:
+        raise ValueError("LOGIN_USER_ID 未配置")
+
+    login_password = os.getenv("LOGIN_PASSWORD", "").strip()
+    if not login_password:
+        raise ValueError("LOGIN_PASSWORD 未配置")
 
     webhook_key = os.getenv("WECHAT_WEBHOOK_KEY", "").strip()
     if not webhook_key:
         raise ValueError("WECHAT_WEBHOOK_KEY 未配置")
 
-    return servers, token, live_names, webhook_key
+    return servers, login_url, login_user_id, login_password, live_names, webhook_key
 
 
 def main() -> None:
     try:
-        servers, token, live_names, webhook_key = load_config_from_env()
-        refresher = LiveCodeRefresher(servers, token, live_names, webhook_key)
+        servers, login_url, login_user_id, login_password, live_names, webhook_key = load_config_from_env()
+        refresher = LiveCodeRefresher(servers, live_names, webhook_key)
+
+        # 登录获取 token
+        print("正在登录获取 token...")
+        try:
+            refresher.token = refresher.login(login_url, login_user_id, login_password)
+            print("登录成功")
+        except Exception as exc:
+            error_msg = f"刷码失败：账号 {login_user_id} 登录失败 - {exc}"
+            print(error_msg)
+            # 推送登录失败通知
+            payload = {"msgtype": "text", "text": {"content": error_msg}}
+            refresher.session.post(refresher.webhook_url, json=payload, timeout=10)
+            raise
+
         refresher.run()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"程序执行失败: {exc}")
         raise
 
