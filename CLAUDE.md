@@ -33,7 +33,8 @@ Two parallel implementations with identical logic:
 2. **Cloudflare Worker** (`worker/cf_worker.js`) - For scheduled cron execution and HTTP trigger
 
 Both implementations:
-- Read config from environment variables (SERVER_ALIAS_LIST, SERVER_URL_LIST, LIVE_NAME_LIST, SERVER_TOKEN, WECHAT_WEBHOOK_KEY)
+- Read config from environment variables
+- Login to get auth token via POST to `/api/auth/loginAdmin`
 - Fetch live room list from each server via POST to `/api/live/liveList`
 - Filter rooms by name matching against LIVE_NAME_LIST
 - Refresh verification codes via POST to `/api/live/refreshVerifyCode`
@@ -46,7 +47,9 @@ Both implementations:
 | SERVER_ALIAS_LIST | Comma-separated server aliases (e.g., "E,W,H") |
 | SERVER_URL_LIST | Comma-separated server URLs (same order as aliases) |
 | LIVE_NAME_LIST | Comma-separated room name patterns to match |
-| SERVER_TOKEN | Auth token for API requests |
+| LOGIN_SERVER_URL | Login server URL for authentication |
+| LOGIN_USER_ID | Login user ID |
+| LOGIN_PASSWORD | Login password |
 | WECHAT_WEBHOOK_KEY | WeChat Work robot webhook key |
 
 ## Deployment
