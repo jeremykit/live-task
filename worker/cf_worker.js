@@ -30,18 +30,23 @@ function loadConfig(env, overrides = {}) {
   const aliasList = parseList(getEnv(env, overrides, "SERVER_ALIAS_LIST"));
   const urlList = parseList(getEnv(env, overrides, "SERVER_URL_LIST"));
   const liveNames = parseList(getEnv(env, overrides, "LIVE_NAME_LIST"));
-  const token = (getEnv(env, overrides, "SERVER_TOKEN") || "").trim();
   const webhookKey = (getEnv(env, overrides, "WECHAT_WEBHOOK_KEY") || "").trim();
+
+  const loginUrl = (getEnv(env, overrides, "LOGIN_SERVER_URL") || "").trim();
+  const loginUserId = (getEnv(env, overrides, "LOGIN_USER_ID") || "").trim();
+  const loginPassword = (getEnv(env, overrides, "LOGIN_PASSWORD") || "").trim();
 
   if (!aliasList.length) throw new Error("SERVER_ALIAS_LIST 未配置");
   if (!urlList.length) throw new Error("SERVER_URL_LIST 未配置");
   if (aliasList.length !== urlList.length) throw new Error("SERVER_ALIAS_LIST 与 SERVER_URL_LIST 数量不一致");
   if (!liveNames.length) throw new Error("LIVE_NAME_LIST 未配置");
-  if (!token) throw new Error("SERVER_TOKEN 未配置");
   if (!webhookKey) throw new Error("WECHAT_WEBHOOK_KEY 未配置");
+  if (!loginUrl) throw new Error("LOGIN_SERVER_URL 未配置");
+  if (!loginUserId) throw new Error("LOGIN_USER_ID 未配置");
+  if (!loginPassword) throw new Error("LOGIN_PASSWORD 未配置");
 
   const servers = aliasList.map((alias, idx) => ({ alias: alias, url: urlList[idx] }));
-  return { servers, liveNames, token, webhookKey };
+  return { servers, liveNames, webhookKey, loginUrl, loginUserId, loginPassword };
 }
 
 function parseOverridesFromUrl(url) {
@@ -80,6 +85,27 @@ async function safeError(response) {
 
 function buildHeaders(token) {
   return { "Content-Type": "application/json", Token: token };
+}
+
+async function login(loginUrl, userId, password, fetcher) {
+  const endpoint = `https://${loginUrl}/api/auth/loginAdmin`;
+  const payload = { param: { password, userId } };
+
+  const res = await fetcher(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error(await safeError(res));
+
+  const data = await safeJson(res);
+  if (!data?.meta?.success) throw new Error(data?.meta?.message || "登录失败");
+
+  const token = data?.data?.token;
+  if (!token) throw new Error("登录响应中未找到 token");
+
+  return token;
 }
 
 async function fetchLiveList(server, token, fetcher) {
@@ -258,7 +284,27 @@ async function refreshAll(servers, token, liveNames, fetcher) {
 }
 
 async function run(env, overrides = {}, fetcher = fetch) {
-  const { servers, liveNames, token, webhookKey } = loadConfig(env, overrides);
+  const { servers, liveNames, webhookKey, loginUrl, loginUserId, loginPassword } = loadConfig(env, overrides);
+
+  // 登录获取 token
+  let token;
+  try {
+    console.log("正在登录获取 token...");
+    token = await login(loginUrl, loginUserId, loginPassword, fetcher);
+    console.log("登录成功");
+  } catch (err) {
+    const errorMsg = `刷码失败：账号 ${loginUserId} 登录失败 - ${err.message || err}`;
+    console.error(errorMsg);
+    // 推送登录失败通知
+    const webhook = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${webhookKey}`;
+    await fetcher(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ msgtype: "text", text: { content: errorMsg } }),
+    });
+    throw err;
+  }
+
   const results = await refreshAll(servers, token, liveNames, fetcher);
 
   for (const result of results) {
