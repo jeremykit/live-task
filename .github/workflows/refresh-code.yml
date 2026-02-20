@@ -26,7 +26,9 @@ jobs:
       env:
         SERVER_ALIAS_LIST: ${{ secrets.SERVER_ALIAS_LIST }}
         SERVER_URL_LIST: ${{ secrets.SERVER_URL_LIST }}
-        SERVER_TOKEN: ${{ secrets.SERVER_TOKEN }}
         LIVE_NAME_LIST: ${{ secrets.LIVE_NAME_LIST }}
         WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
+        LOGIN_SERVER_URL: ${{ secrets.LOGIN_SERVER_URL }}
+        LOGIN_USER_ID: ${{ secrets.LOGIN_USER_ID }}
+        LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
       run: uv run python refresh_code.py

@@ -23,9 +23,11 @@ jobs:
         env:
           SERVER_ALIAS_LIST: ${{ secrets.SERVER_ALIAS_LIST }}
           SERVER_URL_LIST: ${{ secrets.SERVER_URL_LIST }}
-          SERVER_TOKEN: ${{ secrets.SERVER_TOKEN }}
           LIVE_NAME_LIST: ${{ secrets.LIVE_NAME_LIST }}
           WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
+          LOGIN_SERVER_URL: ${{ secrets.LOGIN_SERVER_URL }}
+          LOGIN_USER_ID: ${{ secrets.LOGIN_USER_ID }}
+          LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
         run: |
           python - <<'PY'
           import os
@@ -36,9 +38,11 @@ jobs:
           replacements = {
               "__SERVER_ALIAS_LIST__": os.environ.get("SERVER_ALIAS_LIST", ""),
               "__SERVER_URL_LIST__": os.environ.get("SERVER_URL_LIST", ""),
-              "__SERVER_TOKEN__": os.environ.get("SERVER_TOKEN", ""),
               "__LIVE_NAME_LIST__": os.environ.get("LIVE_NAME_LIST", ""),
               "__WECHAT_WEBHOOK_KEY__": os.environ.get("WECHAT_WEBHOOK_KEY", ""),
+              "__LOGIN_SERVER_URL__": os.environ.get("LOGIN_SERVER_URL", ""),
+              "__LOGIN_USER_ID__": os.environ.get("LOGIN_USER_ID", ""),
+              "__LOGIN_PASSWORD__": os.environ.get("LOGIN_PASSWORD", ""),
           }
 
           for placeholder, value in replacements.items():
